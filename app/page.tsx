@@ -33,7 +33,7 @@ export default async function Home() {
   if (profile?.role !== "admin") return <AccessPending />;
 
   const [membersResult,teamsResult,transactionsResult,loansResult,seasonResult,bankResult] = await Promise.all([
-    supabase.from("member_balance_summary").select("*"),
+    supabase.from("member_balance_summary").select("*").neq("role","admin"),
     supabase.from("team_balance_summary").select("*"),
     supabase.from("transactions").select("id,transaction_date,member_id,direction,category,amount,description").order("transaction_date",{ascending:false}).limit(100),
     supabase.from("bank_loans").select("id,team_id,principal_amount,borrowed_at,due_at,status,repayment_amount").order("borrowed_at",{ascending:false}).limit(100),
