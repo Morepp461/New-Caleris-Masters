@@ -3,6 +3,9 @@ import {useState} from "react";
 import {Activity,ArrowUpRight,Banknote,Bell,ChevronDown,CircleHelp,Flag,LayoutDashboard,Menu,Plus,Search,Settings2,ShieldCheck,Trophy,Users,Wallet,X} from "lucide-react";
 import {DEFAULT_STATE,formatCurrency} from "@/lib/economy";
 
+type DashboardStats = { members:number; teams:number; circulatingBalance:number; racesCompleted:number; balancingPeriod:number; season:number; bankBalance:number };
+const defaultStats:DashboardStats = DEFAULT_STATE;
+
 const nav=[{label:"Overview",icon:LayoutDashboard},{label:"Anggota",icon:Users},{label:"Tim",icon:Flag},{label:"Keuangan",icon:Wallet},{label:"Balapan",icon:Trophy},{label:"Vreeo Bank",icon:Banknote}];
 const metrics=[
  {label:"Total Anggota",value:String(DEFAULT_STATE.members),note:"Belum ada anggota",icon:Users},
@@ -19,7 +22,7 @@ export function Dashboard(){
  return <main className="app-frame">
   <aside className={`sidebar ${menuOpen?"sidebar-open":""}`}>
    <div className="brand"><div className="brand-mark">C<span>.</span></div><div><div className="brand-name">CALERIS</div><div className="brand-sub">MASTERS CONTROL</div></div><button className="icon-button close-menu" onClick={()=>setMenuOpen(false)} aria-label="Tutup menu"><X size={18}/></button></div>
-   <div className="workspace-label">WORKSPACE</div><div className="season-switch"><div className="season-icon">S<span>0</span></div><div className="season-copy"><b>Season 0</b><small>Belum dimulai</small></div><ChevronDown size={15}/></div>
+   <div className="workspace-label">WORKSPACE</div><div className="season-switch"><div className="season-icon">S<span>0</span></div><div className="season-copy"><b>Season {stats.season}</b><small>{stats.season===0?"Belum dimulai":"Sedang berjalan"}</small></div><ChevronDown size={15}/></div>
    <nav className="nav-list" aria-label="Navigasi utama"><div className="nav-caption">MANAGEMENT</div>
     {nav.map(({label,icon:Icon})=><button key={label} onClick={()=>{setActive(label);setMenuOpen(false)}} className={`nav-item ${active===label?"active":""}`}><Icon size={17}/><span>{label}</span>{active===label&&<span className="nav-active-dot"/>}</button>)}
     <div className="nav-caption nav-caption-spaced">SYSTEM</div><button className="nav-item" onClick={()=>setActive("Pengaturan")}><Settings2 size={17}/><span>Pengaturan</span></button><button className="nav-item" onClick={()=>setActive("Panduan")}><CircleHelp size={17}/><span>Panduan sistem</span></button>
@@ -35,13 +38,13 @@ export function Dashboard(){
     {active==="Overview"?<>
      <div className="metrics-grid">{metrics.map(({label,value,note,icon:Icon},i)=><article className="metric-card" key={label}><div className="metric-top"><span>{label}</span><div className={`metric-icon metric-icon-${i}`}><Icon size={17}/></div></div><div className="metric-value">{value}</div><div className="metric-note">{note}</div></article>)}</div>
      <div className="section-grid">
-      <section className="panel balance-panel"><div className="panel-heading"><div><div className="panel-kicker">FINANCIAL OVERVIEW</div><h2>Perputaran Ekonomi</h2></div><span className="period-pill">SEASON 0</span></div><div className="balance-total">{formatCurrency(0)}</div><div className="balance-caption">TOTAL SALDO BEREDAR</div>
+      <section className="panel balance-panel"><div className="panel-heading"><div><div className="panel-kicker">FINANCIAL OVERVIEW</div><h2>Perputaran Ekonomi</h2></div><span className="period-pill">{seasonLabel}</span></div><div className="balance-total">{formatCurrency(stats.circulatingBalance)}</div><div className="balance-caption">TOTAL SALDO BEREDAR</div>
        <div className="balance-chart"><div className="chart-grid"><span>¢p100k</span><span>¢p75k</span><span>¢p50k</span><span>¢p25k</span><span>¢p0</span></div><div className="chart-empty"><div className="chart-empty-icon"><Activity size={22}/></div><b>Belum ada aktivitas ekonomi</b><span>Grafik akan terbentuk setelah transaksi pertama dicatat.</span></div><div className="chart-months">{["JAN","FEB","MAR","APR","MEI","JUN","JUL","AGU","SEP","OKT","NOV","DES"].map(x=><span key={x}>{x}</span>)}</div></div>
        <div className="balance-legend"><span><i className="legend-income"/> Saldo masuk</span><span><i className="legend-expense"/> Saldo keluar</span></div>
       </section>
       <section className="panel activity-panel"><div className="panel-heading"><div><div className="panel-kicker">LATEST UPDATES</div><h2>Aktivitas Terbaru</h2></div><button className="text-button">Lihat semua <ArrowUpRight size={13}/></button></div><div className="activity-empty"><div className="empty-icon"><Activity size={20}/></div><b>Belum ada aktivitas</b><span>Aktivitas sistem akan muncul di sini.</span></div></section>
      </div>
-     <section className="panel lower-panel"><div className="panel-heading"><div><div className="panel-kicker">COMPETITION STATUS</div><h2>Status Kompetisi</h2></div><span className="period-pill">BELUM AKTIF</span></div><div className="status-grid"><div className="status-item"><span>Season aktif</span><b>0</b><small>Belum ada season</small></div><div className="status-item"><span>Periode balancing</span><b>0</b><small>Setiap 5 race</small></div><div className="status-item"><span>Race berikutnya</span><b>—</b><small>Jadwal belum tersedia</small></div><div className="status-item"><span>Vreeo Bank</span><b>{formatCurrency(0)}</b><small>Saldo awal belum diatur</small></div></div></section>
+     <section className="panel lower-panel"><div className="panel-heading"><div><div className="panel-kicker">COMPETITION STATUS</div><h2>Status Kompetisi</h2></div><span className="period-pill">BELUM AKTIF</span></div><div className="status-grid"><div className="status-item"><span>Season aktif</span><b>{stats.season}</b><small>{stats.season===0?"Belum ada season":"Season terdaftar"}</small></div><div className="status-item"><span>Periode balancing</span><b>{stats.balancingPeriod}</b><small>Setiap 5 race</small></div><div className="status-item"><span>Race berikutnya</span><b>{stats.season===0?"—":stats.racesCompleted+1}</b><small>{stats.season===0?"Jadwal belum tersedia":"Nomor race selanjutnya"}</small></div><div className="status-item"><span>Vreeo Bank</span><b>{formatCurrency(stats.bankBalance)}</b><small>Saldo kas bank</small></div></div></section>
     </>:<section className="panel module-placeholder"><div className="empty-icon"><ShieldCheck size={22}/></div><div className="panel-kicker">MODULE FOUNDATION</div><h2>{active}</h2><p>Struktur modul sudah disiapkan. Fitur operasional akan diaktifkan setelah skema database dan hak akses dipasang.</p><span className="period-pill">BELUM TERHUBUNG KE DATABASE</span></section>}
     <footer className="page-footer"><span>© 2026 CALERIS MASTERS</span><span>BUILT FOR THE PADDOCK <b>◆</b></span></footer>
    </div>
