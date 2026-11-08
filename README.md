@@ -20,7 +20,11 @@ Caleris Masters is a motorsport roleplay management platform. The foundation fol
 - Team wealth tax uses the principal's balance, not the sum of team members.
 - Wealth-tax tiers: up to ¢p150,000 = 0%; above ¢p150,000 through ¢p300,000 = 5%; above ¢p300,000 = 10%.
 - Vreeo Bank late interest: simple interest, 5% of principal per late day, without compounding.
-- Driver transfer tax: 10% when gross transfer is greater than ¢p50,000.
+- Driver transfer tax: 10% when gross transfer is greater than ¢p50,000; the selling team's principal receives the net amount and the buying team's principal is charged the gross transfer.
+- Inactive fine: ¢p1,000 standard, or ¢p50,000 when a proxy/fraudulent check-in is confirmed.
+- Wealth-tax and fine logs are deducted from the affected principal/member balance directly; do not also create duplicate expense transactions.
+- Loan disbursements and repayments remain separate ledger transactions, while the loan register tracks due dates and simple late interest.
+- Sponsorship T1 is calculated from each active team driver's five check-ins in that balancing period; T2 and T4 are derived from fine and bank-debt records; T3 remains a manual sponsor-funds confirmation.
 - One balancing period covers 5 races.
 - Sponsorship components: T1 ¢p50,000, T2 ¢p40,000, T3 ¢p30,000, T4 ¢p10,000 (maximum ¢p130,000).
 
@@ -40,7 +44,7 @@ npm run dev
 3. Apply `supabase/migrations/202611080001_initial_schema.sql` using the Supabase CLI or SQL editor.
 4. Configure authentication providers and storage after reviewing the member onboarding flow.
 
-The current dashboard is a frontend foundation; it does not yet submit real transactions or manage live member records. The migration establishes the initial data model and admin-only mutation boundary. Never expose the Supabase service-role key in browser code.
+The current dashboard is a frontend foundation; it does not yet submit real transactions or manage live member records. Migrations 001–004 establish the initial data model, ledger calculations, direct tax/fine deductions, sponsorship eligibility, transfer settlement and admin-only mutation boundary. Never expose the Supabase service-role key in browser code.
 
 ## Permission model
 
