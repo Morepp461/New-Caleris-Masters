@@ -6,7 +6,7 @@ alter table public.transactions
 create table public.penalty_logs (
   id uuid primary key default gen_random_uuid(),
   member_id uuid not null references public.member_profiles(id) on delete restrict,
-  team_id uuid references public.teams(id) on delete restrict,
+  team_id uuid not null references public.teams(id) on delete restrict,
   season_id uuid references public.seasons(id) on delete set null,
   balancing_period integer,
   penalty_type text not null check (penalty_type in ('inactive','steward','other')),
