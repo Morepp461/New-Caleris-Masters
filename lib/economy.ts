@@ -7,7 +7,7 @@ export const DEFAULT_STATE = Object.freeze({members:0,teams:0,circulatingBalance
 export const STANDARD_TARIFFS = {
   afterRacePoster:1_000,socialPoster:5_000,dailyCheckIn:500,initialSeasonContribution:100_000,
   reliefFund:10_000,prizeMoney:50_000,teamRegistration:25_000,carMaintenance:1_000,stewardFine:500,
-  inactiveFine:1_000,driverAcademy:1_500,development:1_000_000,wildcard:5_000
+  inactiveFineStandard:1_000,inactiveFineProxy:50_000,driverAcademy:1_500,development:1_000_000,wildcard:5_000
 } as const;
 
 export function driverSalaryPerRace(role:MemberRole,status:MemberStatus,division:"premio"|"zwei"):number {
@@ -21,7 +21,7 @@ export function individualBalance(openingBalance:number,salary:number,otherIncom
   return openingBalance+salary+otherIncome-expenses;
 }
 export function wealthTaxRate(balance:number):0|0.05|0.1 {
-  // Exactly ¢p150,000 remains in tier 0; see README for source-boundary caveat.
+  // Source PDF overlaps at exactly ¢p150,000; original workbook formula is unavailable.
   if(balance<=150_000)return 0;
   if(balance<=300_000)return 0.05;
   return 0.1;
@@ -35,6 +35,15 @@ export function lateLoanInterest(principal:number,dueDate:Date,paidDate:Date):nu
 }
 export function driverTransferTax(grossAmount:number):number {
   return grossAmount>50_000?Math.round(grossAmount*0.1):0;
+}
+export function driverTransferNet(grossAmount:number):number {
+  return Math.max(0,grossAmount-driverTransferTax(grossAmount));
+}
+export function inactiveFineAmount(proxyDetected:boolean):number {
+  return proxyDetected?50_000:1_000;
+}
+export function allDriversCheckedInFiveTimes(checkinsByDriver:number[]):boolean {
+  return checkinsByDriver.length>0 && checkinsByDriver.every(count=>count>=5);
 }
 export function teamBalanceFromPrincipal(principalBalance:number):number{return principalBalance;}
 export function bankBalance(input:{openingCapital:number;loansDisbursed:number;repaymentsAndInterest:number;wealthTaxes:number;fines:number;transferTaxes:number}):number {
