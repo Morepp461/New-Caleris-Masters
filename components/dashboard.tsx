@@ -4,7 +4,7 @@ import {Activity,ArrowUpRight,Banknote,Bell,ChevronDown,CircleHelp,Flag,LayoutDa
 import {DEFAULT_STATE,formatCurrency} from "@/lib/economy";
 
 type DashboardStats = { members:number; teams:number; circulatingBalance:number; racesCompleted:number; balancingPeriod:number; season:number; bankBalance:number };
-const defaultStats:DashboardStats = DEFAULT_STATE;
+const defaultStats:DashboardStats = {...DEFAULT_STATE,bankBalance:0};
 
 const nav=[{label:"Overview",icon:LayoutDashboard},{label:"Anggota",icon:Users},{label:"Tim",icon:Flag},{label:"Keuangan",icon:Wallet},{label:"Balapan",icon:Trophy},{label:"Vreeo Bank",icon:Banknote}];
 const metrics=[
