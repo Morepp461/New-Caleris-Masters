@@ -7,6 +7,7 @@ import {
   Users, Wallet, X
 } from "lucide-react";
 import { DEFAULT_STATE, formatCurrency } from "@/lib/economy";
+import { SignOutButton } from "@/components/sign-out-button";
 
 type DashboardStats = {
   members:number; teams:number; circulatingBalance:number; racesCompleted:number;
@@ -68,7 +69,7 @@ export function Dashboard({
     {nav.map(({label,icon:Icon})=><button key={label} onClick={()=>{setActive(label);setMenuOpen(false);setSearch("")}} className={`nav-item ${active===label?"active":""}`}><Icon size={17}/><span>{label}</span>{active===label&&<span className="nav-active-dot"/>}</button>)}
     <div className="nav-caption nav-caption-spaced">SYSTEM</div><button className={`nav-item ${active==="Pengaturan"?"active":""}`} onClick={()=>setActive("Pengaturan")}><Settings2 size={17}/><span>Pengaturan</span></button><button className={`nav-item ${active==="Panduan"?"active":""}`} onClick={()=>setActive("Panduan")}><CircleHelp size={17}/><span>Panduan sistem</span></button>
    </nav>
-   <div className="sidebar-bottom"><div className="admin-card"><div className="admin-avatar">A</div><div className="admin-copy"><b>Administrator</b><small>Caleris Masters</small></div><ChevronDown size={14}/></div><div className="sidebar-version">CALERIS MASTERS <span>·</span> FOUNDATION</div></div>
+   <div className="sidebar-bottom"><div className="admin-card"><div className="admin-avatar">A</div><div className="admin-copy"><b>Administrator</b><small>Caleris Masters</small></div><SignOutButton/></div><div className="sidebar-version">CALERIS MASTERS <span>·</span> FOUNDATION</div></div>
   </aside>
   <section className="main-column">
    <header className="topbar"><div className="topbar-left"><button className="icon-button mobile-menu" onClick={()=>setMenuOpen(true)} aria-label="Buka menu"><Menu size={19}/></button><div className="breadcrumb">CALERIS MASTERS <span>/</span> <b>{active.toUpperCase()}</b></div></div>
