@@ -6,7 +6,7 @@ export const DEFAULT_STATE = Object.freeze({members:0,teams:0,circulatingBalance
 
 export const STANDARD_TARIFFS = {
   afterRacePoster:1_000,socialPoster:5_000,dailyCheckIn:500,initialSeasonContribution:100_000,
-  reliefFund:10_000,teamRegistration:25_000,carMaintenance:1_000,stewardFine:500,
+  reliefFund:10_000,prizeMoney:50_000,teamRegistration:25_000,carMaintenance:1_000,stewardFine:500,
   inactiveFine:1_000,driverAcademy:1_500,development:1_000_000,wildcard:5_000
 } as const;
 
