@@ -8,14 +8,13 @@ create table public.penalty_logs (
   member_id uuid not null references public.member_profiles(id) on delete restrict,
   team_id uuid not null references public.teams(id) on delete restrict,
   season_id uuid references public.seasons(id) on delete set null,
-  balancing_period integer,
+  balancing_period integer not null check (balancing_period > 0),
   penalty_type text not null check (penalty_type in ('inactive','steward','other')),
   balance_checked bigint,
   amount bigint not null check (amount >= 0),
   description text,
   assessed_at timestamptz not null default now(),
   created_by uuid references auth.users(id) on delete set null,
-  check (balancing_period is null or balancing_period > 0)
 );
 
 alter table public.penalty_logs enable row level security;
@@ -90,7 +89,7 @@ team_driver_checkins as (
   join public.teams t on t.id = st.team_id
   join public.seasons s on s.id = st.season_id
   left join public.member_profiles mp
-    on mp.current_team_id = t.id and mp.role = 'driver' and mp.status = 'active'
+    on mp.current_team_id = t.id and mp.role = 'driver'
   left join driver_checkins dc
     on dc.team_id = t.id
     and dc.season_id = s.id
