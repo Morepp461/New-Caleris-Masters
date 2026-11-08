@@ -88,7 +88,8 @@ select
     - coalesce(t.total_expenses,0)
   )::bigint as ending_balance
 from public.member_profiles m
-left join transaction_totals t on t.member_id = m.id;
+left join transaction_totals t on t.member_id = m.id
+where public.is_admin();
 
 create or replace view public.team_balance_summary
 with (security_invoker = true)
@@ -101,7 +102,8 @@ select
   coalesce(b.ending_balance,0)::bigint as team_balance
 from public.teams t
 left join public.member_profiles p on p.id = t.principal_id
-left join public.member_balance_summary b on b.member_id = t.principal_id;
+left join public.member_balance_summary b on b.member_id = t.principal_id
+where public.is_admin();
 
 grant select on public.member_balance_summary to authenticated;
 grant select on public.team_balance_summary to authenticated;
