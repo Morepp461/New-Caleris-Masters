@@ -14,7 +14,7 @@ create table public.penalty_logs (
   amount bigint not null check (amount >= 0),
   description text,
   assessed_at timestamptz not null default now(),
-  created_by uuid references auth.users(id) on delete set null,
+  created_by uuid references auth.users(id) on delete set null
 );
 
 alter table public.penalty_logs enable row level security;
