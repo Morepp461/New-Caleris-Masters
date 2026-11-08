@@ -39,12 +39,19 @@ npm run dev
 
 ## Supabase setup
 
-1. Create a Supabase project owned by the Caleris Masters project owner.
-2. Copy `.env.example` to `.env.local` and fill in the public project URL and anon key.
-3. Apply `supabase/migrations/202611080001_initial_schema.sql` using the Supabase CLI or SQL editor.
-4. Configure authentication providers and storage after reviewing the member onboarding flow.
+1. The database migrations 001–006 are applied to the active `Clrs Mstr 2` Supabase project. Do not apply them again to that project.
+2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from that project's API settings in local `.env.local` and the Vercel project's Environment Variables.
+3. Create the first admin account in Supabase Authentication, then copy its Auth user UUID.
+4. In the SQL Editor, link that Auth user to the platform admin profile with the one-time statement below, replacing the UUID and display name:
 
-The current dashboard is a frontend foundation; it does not yet submit real transactions or manage live member records. Migrations 001–004 establish the initial data model, ledger calculations, direct tax/fine deductions, sponsorship eligibility, transfer settlement and admin-only mutation boundary. Never expose the Supabase service-role key in browser code.
+   ```sql
+   insert into public.member_profiles (user_id, display_name, role, status)
+   values ('AUTH_USER_UUID', 'Administrator', 'admin', 'active');
+   ```
+
+5. The admin profile is excluded from the member count. Do not create sample member, team, season, or transaction rows.
+
+The command center reads live counts, member balances, team balances, the transaction ledger, and bank loans from Supabase. Member, team, finance and bank screens are currently read-only; create/edit workflows are the next implementation stage. Never expose the Supabase service-role key in browser code.
 
 ## Permission model
 
