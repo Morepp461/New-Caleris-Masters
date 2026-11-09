@@ -22,7 +22,7 @@ This checklist follows the Phase 01 scope and G1 gate in `CALERIS MASTERS Master
 | CI / QA | `.github/workflows/ci.yml` | CI workflow exists; latest branch checks must pass |
 | Atlas migration verification | `.github/workflows/phase-01-dev-migration.yml` | Blocked: `caleris_app` currently has `readWrite` + `dbAdmin` only on `caleris_masters`, not `caleris_masters_dev`; no schema_migrations record exists in Development |
 
-## Current external blocker\n\nAtlas user inspection confirms `caleris_app` is scoped to Production database `caleris_masters` only. The Development migration workflow targets `caleris_masters_dev`, so the account cannot complete the migration there until Atlas grants `readWrite` and `dbAdmin` on `caleris_masters_dev`. The migration was not executed through the Atlas connector because it does not expose the required `collMod` operation. Do not change Production roles or run a Production migration to work around this.\n\n## Exit criteria
+## Current external blocker\n\nAtlas access was updated and rechecked: `caleris_app` now has `readWrite` and `dbAdmin` on `caleris_masters_dev`. The migration workflow can now use this account through the repository's `MONGODB_URI_DEV` secret. Migration execution and driver-level verification are still pending.\n\n## Exit criteria
 
 G1 is accepted only when:
 - All source-defined collections and constraints are represented and tested.
