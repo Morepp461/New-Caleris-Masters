@@ -10,7 +10,7 @@ export const QUERY_PLAN_CASES = [
   ["team_memberships", "active player", { player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_memberships_active_player"],
   ["team_memberships", "active player", { player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_memberships_active_player"],
   ["team_memberships", "team status", { team_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_memberships_team_status"],
-  ["team_contracts", "driver status", { driver_player_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_contracts_driver_status"],
+  ["team_contracts", "active driver", { driver_player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_contracts_active_driver"],
   ["team_contracts", "active driver", { driver_player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_contracts_active_driver"],
   ["team_contracts", "team status", { team_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_contracts_team_status"],
   ["quest_assignments", "target status", { target_type: "PLAYER", target_id: "__g1_explain__", status: "ACTIVE" }, "ix_quest_assignments_target_status"],
