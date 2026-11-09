@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod, postConfiguredMoneyMovement, issueTeamLoan, repayTeamLoan } from "@/lib/economy/ledger";
+import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod, postConfiguredMoneyMovement, issueTeamLoan, repayTeamLoan, reverseMoneyTransaction } from "@/lib/economy/ledger";
 import { defaultEconomyRules, validateEconomyRules } from "@/lib/economy/policy.mjs";
 
 export const runtime = "nodejs";
@@ -53,6 +53,15 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     throw new AppError("INVALID_TOKEN_TYPE", "Token type must be DDP or TDP.", 400);
   }
   await requireOperator(principal);
+  if (action === "REVERSE_TRANSACTION") {
+    const result = await reverseMoneyTransaction({
+      transactionId: readString(body.transactionId, "transactionId", { max: 64 }),
+      actorId,
+      reason: readString(body.reason, "reason", { min: 8, max: 500 }),
+      idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }),
+    });
+    return success(result, meta, result.replayed ? 200 : 201);
+  }
   if (action === "RULED_MOVEMENT") {
     const result = await postConfiguredMoneyMovement({
       sourceAccountId: readString(body.sourceAccountId, "sourceAccountId", { max: 64 }),
