@@ -150,6 +150,10 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(!rules.enabledWorkflows.sponsorship)throw new Error("Sponsorship dinonaktifkan.");
         const t=team(String(input.teamName??"")),flags=input.flags as Record<string,boolean>;
         if(!flags||typeof flags!=="object")throw new Error("Komponen sponsorship belum dipilih.");
+        const fines=await db.collection("admin_sheet_records").find({sheet_key:"transaksi","row_data.c2":t.name,"row_data.c9":String(input.season),"row_data.c4":{$regex:"Denda",$options:"i"},voided:{$ne:true}},{session}).toArray();
+        const debts=await db.collection("bank_loans").find({team:t.name,season:input.season,status:{$in:["active","overdue"]}},{session}).toArray();
+        if(flags.t2&&fines.length)throw new Error("T2 tidak memenuhi syarat: tim memiliki catatan denda pada season ini.");
+        if(flags.t4&&debts.length)throw new Error("T4 tidak memenuhi syarat: tim masih memiliki hutang bank season ini.");
         const amount=(flags.t1?rules.sponsorship.participation:0)+(flags.t2?rules.sponsorship.zeroFines:0)+(flags.t3?rules.sponsorship.guaranteed:0)+(flags.t4?rules.sponsorship.zeroDebt:0);
         if(amount<=0)throw new Error("Tidak ada komponen sponsorship yang memenuhi syarat.");
         await add(bank,"Keluar","Sponsorship",amount,`T1:${!!flags.t1} T2:${!!flags.t2} T3:${!!flags.t3} T4:${!!flags.t4}`);
@@ -160,7 +164,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(!rules.enabledWorkflows.prizeMoney||!rules.prizeMoney.enabled)throw new Error("Prize money dinonaktifkan.");
         const rank=money(input.position);if(rank<1)throw new Error("Posisi klasemen tidak valid.");
         const amount=Math.max(rules.prizeMoney.minimum,rank===1?rules.prizeMoney.first:rank===2?rules.prizeMoney.second:rules.prizeMoney.second-(rank-2)*rules.prizeMoney.decrementPerPosition);
-        const recipient=input.recipientType==="driver"?driver(String(input.recipientName??"")):team(String(input.recipientName??""));
+        if(input.recipientType==="driver")throw new Error("Prize Money ini adalah WCC dan hanya dibayarkan kepada tim.");\n        const recipient=team(String(input.recipientName??""));
         if(amount<=0)throw new Error("Prize money posisi ini bernilai nol.");
         await add(bank,"Keluar","Prize Money",amount,`P${rank} Season ${input.season}`);
         await add(recipient,"Masuk","Prize Money",amount,`Prize Money P${rank}`);
