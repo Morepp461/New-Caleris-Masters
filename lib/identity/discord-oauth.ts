@@ -1,4 +1,4 @@
-import { randomBytes, timingSafeEqual } from "node:crypto";
+import { createOAuthState, verifyOAuthState } from "./crypto.mjs";
 import { AppError } from "@/lib/server/errors";
 
 const STATE_COOKIE = process.env.NODE_ENV === "production" ? "__Host-caleris_oauth_state" : "caleris_oauth_state";
@@ -13,19 +13,8 @@ export function getDiscordOAuthConfig() {
   return { clientId, clientSecret, redirectUri };
 }
 
-export function createOAuthState() {
-  return randomBytes(32).toString("base64url");
-}
-
 export function getOAuthStateCookieName() {
   return STATE_COOKIE;
-}
-
-export function verifyOAuthState(expected: string | undefined, received: string | null) {
-  if (!expected || !received) return false;
-  const left = Buffer.from(expected);
-  const right = Buffer.from(received);
-  return left.length === right.length && timingSafeEqual(left, right);
 }
 
 export function buildDiscordAuthorizationUrl(state: string) {
