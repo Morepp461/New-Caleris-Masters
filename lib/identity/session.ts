@@ -6,6 +6,8 @@ import { getMongoDatabase } from "@/lib/db/mongodb";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const COOKIE_NAME = process.env.NODE_ENV === "production" ? "__Host-caleris_session" : "caleris_session";
 
+type StringIdDocument = { _id: string; [key: string]: any };
+
 export type SessionPrincipal = {
   playerId: string;
   discordUserId: string;
@@ -17,7 +19,6 @@ export type SessionPrincipal = {
   isOperator: boolean;
   sessionId: string;
 };
-
 
 export function setSessionCookie(response: NextResponse, token: string) {
   response.cookies.set(COOKIE_NAME, token, {
@@ -45,10 +46,11 @@ export async function createPlayerSession(input: {
   discordUserId: string;
 }) {
   const db = await getMongoDatabase();
+  const sessions = db.collection<StringIdDocument>("player_sessions");
   const token = createOpaqueToken();
   const now = new Date();
   const sessionId = randomUUID();
-  await db.collection("player_sessions").insertOne({
+  await sessions.insertOne({
     _id: sessionId,
     player_id: input.playerId,
     auth_account_id: input.authAccountId,
@@ -72,8 +74,12 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
   if (!token || token.length < 32 || token.length > 128) return null;
 
   const db = await getMongoDatabase();
+  const sessions = db.collection<StringIdDocument>("player_sessions");
+  const players = db.collection<StringIdDocument>("players");
+  const accounts = db.collection<StringIdDocument>("auth_accounts");
+  const assignments = db.collection<StringIdDocument>("role_assignments");
   const now = new Date();
-  const session = await db.collection("player_sessions").findOne({
+  const session = await sessions.findOne({
     session_token_hash: hashOpaqueToken(token),
     status: "ACTIVE",
     expires_at: { $gt: now },
@@ -81,8 +87,8 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
   if (!session) return null;
 
   const [player, account] = await Promise.all([
-    db.collection("players").findOne({ _id: session.player_id }),
-    db.collection("auth_accounts").findOne({
+    players.findOne({ _id: session.player_id }),
+    accounts.findOne({
       _id: session.auth_account_id,
       player_id: session.player_id,
       provider: "discord",
@@ -93,7 +99,7 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
   if (!player || !account || player.account_status !== "ACTIVE") return null;
 
   const role = typeof player.active_role === "string"
-    ? await db.collection("role_assignments").findOne({
+    ? await assignments.findOne({
         player_id: player._id,
         role: player.active_role,
         status: "ACTIVE",
@@ -104,7 +110,7 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
 
   const lastSeen = session.last_seen_at instanceof Date ? session.last_seen_at : new Date(0);
   if (now.getTime() - lastSeen.getTime() > 5 * 60 * 1000) {
-    await db.collection("player_sessions").updateOne(
+    await sessions.updateOne(
       { _id: session._id, status: "ACTIVE" },
       { $set: { last_seen_at: now, updated_at: now } },
     );
@@ -127,8 +133,9 @@ export async function revokeCurrentSession(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) return;
   const db = await getMongoDatabase();
+  const sessions = db.collection<StringIdDocument>("player_sessions");
   const now = new Date();
-  await db.collection("player_sessions").updateOne(
+  await sessions.updateOne(
     { session_token_hash: hashOpaqueToken(token), status: "ACTIVE" },
     { $set: { status: "REVOKED", revoked_at: now, revocation_reason: "USER_LOGOUT", updated_at: now } },
   );
@@ -143,7 +150,7 @@ export async function writeAuthAudit(input: {
   reason?: string;
 }) {
   const db = await getMongoDatabase();
-  await db.collection("audit_logs").insertOne({
+  await db.collection<StringIdDocument>("audit_logs").insertOne({
     _id: randomUUID(),
     actor_type: input.actorType ?? "SYSTEM",
     ...(input.actorId ? { actor_id: input.actorId } : {}),
@@ -152,5 +159,6 @@ export async function writeAuthAudit(input: {
     target_id: input.targetId,
     ...(input.reason ? { reason: input.reason } : {}),
     created_at: new Date(),
+    updated_at: new Date(),
   });
 }
