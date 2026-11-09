@@ -69,7 +69,7 @@ async function accountContext(accountName: string) {
     const row = members[0].row_data ?? {};
     const role = String(row.c3 ?? row.c10 ?? "");
     const team = String(row.c2 ?? row.c5 ?? "");
-    return { db, accountName, accountType: role === "Owner" ? "team" as const : "individual" as const, team, role };
+    return { db, accountName: role === "Owner" ? team || accountName : accountName, accountType: role === "Owner" ? "team" as const : "individual" as const, team, role };
   }
   const teams = await db.collection("admin_sheet_records").find({ sheet_key: "data-tim", "row_data.c0": accountName }).limit(1).toArray();
   if (teams[0]) return { db, accountName, accountType: "team" as const, team: accountName, role: "Owner" };
@@ -92,7 +92,7 @@ export async function postLedgerEntry(input: LedgerInput, adminId: string) {
 
   const records = ctx.db.collection("admin_sheet_records");
   if (ctx.accountType === "team" && input.direction === "Keluar") {
-    const seasonRows = await records.find({ sheet_key: "transaksi", "row_data.c2": accountName, "row_data.c9": String(input.season) }).toArray();
+    const seasonRows = await records.find({ sheet_key: "transaksi", "row_data.c2": ctx.accountName, "row_data.c9": String(input.season) }).toArray();
     let income = 0;
     let expense = 0;
     for (const item of seasonRows) {
@@ -108,7 +108,7 @@ export async function postLedgerEntry(input: LedgerInput, adminId: string) {
 
   const now = new Date();
   const row_data = {
-    c0: "", c1: input.date || now.toISOString().slice(0, 10), c2: accountName,
+    c0: "", c1: input.date || now.toISOString().slice(0, 10), c2: ctx.accountName,
     c3: input.direction, c4: input.category.trim(), c5: input.description?.trim() ?? "",
     c6: String(amount), c7: String(input.period), c8: String(points), c9: String(input.season),
   };
@@ -127,7 +127,7 @@ export async function postLedgerEntry(input: LedgerInput, adminId: string) {
 
 export async function getAccountBalance(accountName: string, season?: number) {
   const ctx = await accountContext(accountName);
-  const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": accountName };
+  const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": ctx.accountName };
   if (season) filter["row_data.c9"] = String(season);
   const rows = await ctx.db.collection("admin_sheet_records").find(filter).toArray();
   return rows.reduce((total, item) => {
