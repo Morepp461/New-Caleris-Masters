@@ -110,21 +110,22 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(principal<=0||principal>rules.loans.maxPerRequest||due<=input.period)throw new Error("Nominal pinjaman atau jatuh tempo tidak valid.");
         await add(bank,"Keluar","Pencairan Pinjaman Bank",principal,`Pinjaman ${t.name}`);
         await add(t,"Masuk","Pencairan Pinjaman Bank",principal,"Pencairan Vreeo Bank");
-        await db.collection("bank_loans").insertOne({reference_id:refId,team:t.name,principal,remaining:principal,season:input.season,issued_period:input.period,due_period:due,periods_per_season:rules.periodsPerSeason,paid_period:null,status:"active",created_at:new Date(),created_by:adminId},{session});
+        await db.collection("bank_loans").insertOne({reference_id:refId,team:t.name,principal,remaining:principal,principal_remaining:principal,interest_accrued:0,last_interest_global:(input.season-1)*rules.periodsPerSeason+due,season:input.season,issued_period:input.period,due_period:due,periods_per_season:rules.periodsPerSeason,paid_period:null,status:"active",created_at:new Date(),created_by:adminId},{session});
         result={...result,team:t.name,principal,duePeriod:due};
       } else if(action==="loan_repay"){
         const loanId=String(input.loanId??"");if(!ObjectId.isValid(loanId))throw new Error("ID pinjaman tidak valid.");
         const loan=await db.collection("bank_loans").findOne({_id:new ObjectId(loanId)},{session});if(!loan||!["active","overdue"].includes(loan.status))throw new Error("Pinjaman aktif tidak ditemukan.");
-        const repayment=money(input.amount),currentGlobal=(input.season-1)*rules.periodsPerSeason+input.period,dueGlobal=(Number(loan.season)-1)*Number(loan.periods_per_season??rules.periodsPerSeason)+Number(loan.due_period),periods=Math.max(0,currentGlobal-dueGlobal);
-        const interest=periods>0?Math.round(Number(loan.remaining)*rules.loans.lateInterestPerPeriod*periods):0;
-        const due=Number(loan.remaining)+interest;
+        const repayment=money(input.amount),currentGlobal=(input.season-1)*rules.periodsPerSeason+input.period,dueGlobal=(Number(loan.season)-1)*Number(loan.periods_per_season??rules.periodsPerSeason)+Number(loan.due_period);
+        const principalRemaining=Number(loan.principal_remaining??loan.remaining),accruedInterest=Number(loan.interest_accrued??0),lastInterestGlobal=Number(loan.last_interest_global??dueGlobal);
+        const overduePeriods=Math.max(0,currentGlobal-Math.max(dueGlobal,lastInterestGlobal));
+        const newInterest=Math.round(principalRemaining*rules.loans.lateInterestPerPeriod*overduePeriods),interestDue=accruedInterest+newInterest,due=principalRemaining+interestDue;
         if(repayment<=0||repayment>due)throw new Error("Nominal pembayaran melebihi tagihan atau tidak valid.");
         const t=team(String(loan.team)),available=await balance(db,t,input.season,session);if(available<repayment)throw new Error("Saldo tim tidak cukup untuk membayar pinjaman.");
-        await add(t,"Keluar","Cicilan Pinjaman Bank",repayment,`Pelunasan pinjaman ${loan.reference_id}`);
+        await add(t,"Keluar","Cicilan Pinjaman Bank",repayment,"Pelunasan pinjaman "+loan.reference_id);
         await add(bank,"Masuk","Cicilan Pinjaman Bank",repayment,"Pembayaran pinjaman");
-        const remain=due-repayment;
-        await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{remaining:remain,status:remain===0?"paid":"overdue",paid_period:remain===0?input.period:null,last_interest:interest,updated_at:new Date()}},{session});
-        result={...result,team:t.name,repayment,interest,remaining:remain};
+        const interestPaid=Math.min(repayment,interestDue),principalPaid=repayment-interestPaid,newInterestAccrued=interestDue-interestPaid,newPrincipalRemaining=Math.max(0,principalRemaining-principalPaid),remain=newPrincipalRemaining+newInterestAccrued;
+        await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{remaining:remain,principal_remaining:newPrincipalRemaining,interest_accrued:newInterestAccrued,last_interest_global:currentGlobal,status:remain===0?"paid":"overdue",paid_period:remain===0?input.period:null,last_interest:newInterest,updated_at:new Date()}},{session});
+        result={...result,team:t.name,repayment,interest:newInterest,interestPaid,principalPaid,remaining:remain};
       } else if(action==="owner_contribution"){
         const ownerName=String(input.ownerName??"");
         const prior=await db.collection("economy_workflows").findOne({action:"owner_contribution",season:input.season,"input.ownerName":ownerName,status:"posted"},{session});
