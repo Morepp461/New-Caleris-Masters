@@ -170,6 +170,16 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await add(bank,"Keluar","Relief Fund",rules.teamAid.payout,"Bantuan akhir season");
         await add(t,"Masuk","Relief Fund",rules.teamAid.payout,"Bantuan akhir season");
         result={...result,team:t.name,balance:current,amount:rules.teamAid.payout};
+      } else if(action==="development"){
+        if(!rules.enabledWorkflows.development)throw new Error("Development dinonaktifkan.");
+        const kind=String(input.accountType),name=String(input.accountName),points=money(input.points),winner=input.raceWinner===true;
+        if(points<rules.development.minimumPoints)throw new Error(`Minimal pembelian ${rules.development.minimumPoints} poin.`);
+        const account=kind==="team"?team(name):driver(name);
+        const free=winner?rules.development.raceWinnerFreePoints:0;
+        const rate=kind==="team"?rules.development.carCostPerPoint:rules.development.driverCostPerPoint;
+        const amount=points*rate;
+        await add(account,"Keluar",kind==="team"?"Biaya Development Mobil (per poin, min. 10)":"Biaya Development Driver (per poin, min. 10)",amount,`Pembelian ${points} poin + ${free} poin gratis pemenang race`);
+        result={...result,account:name,accountType:kind,paidPoints:points,freePoints:free,totalPoints:points+free,amount};
       } else if(action==="period_settlement"){
         if(!rules.enabledWorkflows.wealthTax&&!rules.enabledWorkflows.inactivePenalties)throw new Error("Semua penilaian periode dinonaktifkan.");
         const prior=await db.collection("economy_workflows").findOne({action:"period_settlement",season:input.season,period:input.period,status:"posted"},{session});
