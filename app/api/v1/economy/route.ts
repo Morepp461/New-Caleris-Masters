@@ -24,14 +24,14 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const owners = [{ owner_type: "PLAYER", owner_id: principal.playerId }, ...(team ? [{ owner_type: "TEAM", owner_id: team._id }] : [])];
   const accounts = await db.collection<Doc>("economy_accounts").find(operator ? {} : { $or: owners }).sort({ updated_at: -1 }).limit(operator ? 250 : 10).toArray();
   const accountIds = accounts.map((item) => item._id);
-  const [tokens, transactions, tokenTransactions, rulesets, periods] = await Promise.all([
+  const [tokens, transactions, tokenTransactions, rulesets, periods, loans] = await Promise.all([
     db.collection<Doc>("development_wallets").find(operator ? {} : { $or: owners }).sort({ updated_at: -1 }).limit(operator ? 250 : 10).toArray(),
     db.collection<Doc>("ledger_transactions").find(operator ? {} : { $or: [{ source_account_id: { $in: accountIds } }, { destination_account_id: { $in: accountIds } }] }).sort({ created_at: -1 }).limit(100).toArray(),
     db.collection<Doc>("development_transactions").find(operator ? {} : { $or: owners }).sort({ created_at: -1 }).limit(100).toArray(),
     operator ? db.collection<Doc>("economy_rulesets").find({}).sort({ created_at: -1 }).limit(50).toArray() : [],
     operator ? db.collection<Doc>("economy_periods").find({}).sort({ start_at: -1 }).limit(50).toArray() : [],
   ]);
-  return success({ operator, accounts, developmentWallets: tokens, transactions, developmentTransactions: tokenTransactions, rulesets, periods, economyActivation: "OFF_UNTIL_APPROVED" }, meta);
+  return success({ operator, accounts, developmentWallets: tokens, transactions, developmentTransactions: tokenTransactions, rulesets, periods, loans, economyActivation: "OFF_UNTIL_APPROVED" }, meta);
 }, { scope: "economy-read" });
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
