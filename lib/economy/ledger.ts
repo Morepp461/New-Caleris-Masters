@@ -5,6 +5,7 @@ import { withMongoTransaction } from "@/lib/db/transactions";
 import { AppError } from "@/lib/server/errors";
 import { assertBalancedPostings, canPostMoneyTransfer, toMinorUnits, validateIdempotencyKey, validateReason, validateAccountOwner, validateEconomyRules, TOKEN_TYPES } from "./policy.mjs";
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc = { _id: string; [key: string]: any };
 type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string };
 const now = () => new Date();
