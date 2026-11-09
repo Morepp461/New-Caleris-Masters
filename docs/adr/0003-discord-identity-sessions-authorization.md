@@ -18,7 +18,7 @@ The product source requires Discord OAuth, a distinct permanent player/member id
 ### 1. Identity separation and account linking
 
 - `players._id` remains the canonical player identity.
-- `auth_accounts` remains the provider identity mapping. Discord mappings use `provider: "discord"` and the immutable Discord user ID in `provider_user_id`.
+- `auth_accounts` remains the provider identity mapping. Discord mappings use `provider: "discord"` and the immutable Discord user ID in `provider_user_id`. On successful login, store the latest `provider_username` and `provider_avatar_url` as provider profile metadata on that mapping; these are display metadata only, never identity keys.
 - A successful Discord OAuth response may authenticate only when a matching, pre-provisioned `auth_accounts` record exists and its `player_id` resolves to an active player.
 - OAuth login must never create a player, member ID, team, role assignment, or game balance.
 - Unlinked Discord identities receive a neutral account-not-provisioned response. No automatic linking by username, display name, or email is allowed.
