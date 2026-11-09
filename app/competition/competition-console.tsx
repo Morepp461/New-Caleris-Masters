@@ -77,7 +77,14 @@ export default function CompetitionConsole() {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
     return parsed as Record<string, unknown>;
   }
-  function editDraftRuleset(item: Ruleset) {\n    setRulesetId(item._id); setSeasonId(item.season_id); setDivisionId(item.division_id);\n    setCalendarRules(JSON.stringify(item.calendar_rules ?? {}, null, 2)); setScoringRules(JSON.stringify(item.scoring_rules ?? {}, null, 2));\n    setPenaltyRules(JSON.stringify(item.penalty_rules ?? {}, null, 2)); setRaceRules(JSON.stringify(item.race_rules ?? {}, null, 2));\n    setEconomyRules(JSON.stringify(item.economy_rules ?? {}, null, 2)); setEligibilityRules(JSON.stringify(item.eligibility_rules ?? {}, null, 2));\n    setMessage("Draft ruleset loaded. Edit the JSON fields, then save the draft.");\n  }\n  async function createRuleset(action = "CREATE_RULESET") {
+  function editDraftRuleset(item: Ruleset) {
+    setRulesetId(item._id); setSeasonId(item.season_id); setDivisionId(item.division_id);
+    setCalendarRules(JSON.stringify(item.calendar_rules ?? {}, null, 2)); setScoringRules(JSON.stringify(item.scoring_rules ?? {}, null, 2));
+    setPenaltyRules(JSON.stringify(item.penalty_rules ?? {}, null, 2)); setRaceRules(JSON.stringify(item.race_rules ?? {}, null, 2));
+    setEconomyRules(JSON.stringify(item.economy_rules ?? {}, null, 2)); setEligibilityRules(JSON.stringify(item.eligibility_rules ?? {}, null, 2));
+    setMessage("Draft ruleset loaded. Edit the JSON fields, then save the draft.");
+  }
+  async function createRuleset(action = "CREATE_RULESET") {
     try {
       await submit(action, { ...(action === "UPDATE_RULESET" ? { rulesetId } : {}), seasonId, divisionId, calendarRules: parseJson(calendarRules, "Calendar rules"), scoringRules: parseJson(scoringRules, "Scoring rules"), penaltyRules: parseJson(penaltyRules, "Penalty rules"), raceRules: parseJson(raceRules, "Race rules"), economyRules: parseJson(economyRules, "Economy rules"), eligibilityRules: parseJson(eligibilityRules, "Eligibility rules") });
     } catch (error) { setMessage(error instanceof Error ? error.message : "Invalid ruleset JSON."); }
