@@ -104,7 +104,6 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
     playerId: String(player._id),
     authAccountId: String(account._id),
     discordUserId: profile.id,
-    request,
   });
   await writeAuthAudit({
     action: "AUTH_LOGIN_SUCCEEDED",
