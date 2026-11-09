@@ -73,7 +73,7 @@ Do not add a TTL index: expired/revoked records are retained for security review
 ### 5. Operator provisioning
 
 - Only an authenticated player whose persisted `is_operator` is true may provision or revoke a Discord identity link.
-- Provisioning links an existing player to an existing Discord user ID. It does not create a player or assign a role.
+- Provisioning links an existing player to an existing Discord user ID. It does not create a player or assign a role. Because the existing catalog requires `provider_email`, the pending mapping stores an empty string until the first verified OAuth callback fills the verified email and provider profile metadata.
 - Discord identity must be obtained from a verified provider callback or entered through a controlled operator workflow. No client can self-assign `player_id`, role, or operator status.
 - The unique provider identity index and transaction boundary prevent duplicate account linking.
 - Every provisioning/revocation operation writes an `audit_logs` record in the same MongoDB transaction as the account change.
