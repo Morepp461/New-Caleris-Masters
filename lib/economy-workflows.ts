@@ -105,6 +105,8 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         result={...result,team:t.name,repayment,interest,remaining:remain};
       } else if(action==="owner_contribution"){
         const ownerName=String(input.ownerName??"");
+        const prior=await db.collection("economy_workflows").findOne({action:"owner_contribution",season:input.season,"input.ownerName":ownerName,status:"posted"},{session});
+        if(prior)throw new Error("Kontribusi Owner untuk season ini sudah dicatat.");
         const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"}).toArray();
         const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");
         if(!owner)throw new Error("Owner tidak ditemukan.");
