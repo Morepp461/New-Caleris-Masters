@@ -107,7 +107,7 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
   if (!token || token.length < 32 || token.length > 128) return null;
 
   const db = await getMongoDatabase();
-  const sessions = db.collection<StringIdDocument>("player_sessions");
+  const sessions = db.collection<SessionDocument>("player_sessions");
   const players = db.collection<PlayerDocument>("players");
   const accounts = db.collection<AuthAccountDocument>("auth_accounts");
   const assignments = db.collection<RoleAssignmentDocument>("role_assignments");
@@ -166,7 +166,7 @@ export async function revokeCurrentSession(request: NextRequest) {
   const token = request.cookies.get(COOKIE_NAME)?.value;
   if (!token) return;
   const db = await getMongoDatabase();
-  const sessions = db.collection<StringIdDocument>("player_sessions");
+  const sessions = db.collection<SessionDocument>("player_sessions");
   const now = new Date();
   await sessions.updateOne(
     { session_token_hash: hashOpaqueToken(token), status: "ACTIVE" },
