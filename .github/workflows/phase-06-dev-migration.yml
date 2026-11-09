@@ -1,0 +1,65 @@
+name: Phase 06 Development Database Migration
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/db/migrate-phase-06.mjs", ".github/workflows/phase-06-dev-migration.yml"]
+  workflow_dispatch:
+    inputs:
+      confirm_development_database:
+        description: "Ketik RUN-DEV untuk mengizinkan migrasi ke caleris_masters_dev"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: phase-06-dev-migration
+  cancel-in-progress: false
+jobs:
+  migrate-development:
+    name: Apply and verify Phase 06 migration (development only)
+    if: github.event_name == 'push' || inputs.confirm_development_database == 'RUN-DEV'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" || "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::MONGODB_URI_DEV is required and this workflow only targets caleris_masters_dev."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run db:migrate:phase-06
+      - name: Verify migration and empty competition state
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          const client = new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 2 });
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+            const migration = await db.collection("schema_migrations").findOne({ _id: "005-divisions-seasons-competition" });
+            assert.ok(migration);
+            assert.equal(migration.database, "caleris_masters_dev");
+            assert.equal(migration.seeded_division_count, 2);
+            const divisions = await db.collection("divisions").find({ code: { $in: ["PREMIO", "ZWEI"] } }).sort({ tier: 1 }).toArray();
+            assert.equal(divisions.length, 2);
+            assert.deepEqual(divisions.map(x => x.code), ["PREMIO", "ZWEI"]);
+            assert.deepEqual(divisions.map(x => x.tier), [1, 2]);
+            for (const name of ["seasons", "season_rulesets", "race_calendars", "race_events", "race_entries", "championships", "championship_standings", "season_snapshots"]) {
+              assert.equal(await db.collection(name).countDocuments({}), 0, "Unexpected Phase 06 seed data in " + name);
+            }
+            console.log("Verified Phase 06 migration, indexes, Premio/Zwei seeds and empty season/race state.");
+          } finally { await client.close(); }
+          NODE
