@@ -156,3 +156,5 @@
 .admin-mobile-home{position:relative;z-index:2;flex:0 0 auto}
 .admin-content{position:relative;z-index:1}
 @media(max-width:760px){.admin-topbar{z-index:1000}.admin-mobile-overlay{z-index:2147483000!important}}
+
+.sheet-entity-link{color:#f2c879;text-decoration:none;font-weight:650;transition:color .18s ease}.sheet-entity-link:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}.sheet-ledger-locked{font-size:10px;letter-spacing:.12em;color:#c8a66a;font-weight:700}
