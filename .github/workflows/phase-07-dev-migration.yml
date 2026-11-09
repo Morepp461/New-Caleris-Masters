@@ -1,0 +1,26 @@
+name: Phase 07 Development Migration
+on:
+  workflow_dispatch:
+    inputs:
+      confirmation:
+        description: Type APPLY_PHASE_07_DEV to migrate caleris_masters_dev
+        required: true
+        type: string
+permissions:
+  contents: read
+jobs:
+  migrate:
+    if: ${{ inputs.confirmation == 'APPLY_PHASE_07_DEV' }}
+    runs-on: ubuntu-latest
+    environment: development
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - name: Apply guarded Phase 07 migration
+        run: npm run db:migrate:phase-07
+        env:
+          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          MONGODB_DB: caleris_masters_dev
