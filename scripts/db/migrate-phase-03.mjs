@@ -11,7 +11,7 @@ const migrationDefinition = {
     ["uq_player_sessions_token_hash", { session_token_hash: 1 }, { unique: true }],
     ["ix_player_sessions_player_status_expiry", { player_id: 1, status: 1, expires_at: 1 }, {}],
   ],
-  authAccountIndex: ["uq_auth_accounts_provider_player", { provider: 1, player_id: 1 }, { unique: true, partialFilterExpression: { provider: "discord" } }],
+  authAccountIndex: ["uq_auth_accounts_provider_player", { provider: 1, player_id: 1 }, { unique: true, partialFilterExpression: { provider: "discord", status: { $in: ["PENDING", "ACTIVE"] } } }],
   auditIndex: ["ix_audit_logs_action_created", { action: 1, created_at: 1 }],
 };
 const checksum = createHash("sha256").update(JSON.stringify(migrationDefinition)).digest("hex");
