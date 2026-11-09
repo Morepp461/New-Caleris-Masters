@@ -1,4 +1,5 @@
 import { createOAuthState, verifyOAuthState } from "./crypto.mjs";
+export { createOAuthState, verifyOAuthState };
 import { AppError } from "@/lib/server/errors";
 
 const STATE_COOKIE = process.env.NODE_ENV === "production" ? "__Host-caleris_oauth_state" : "caleris_oauth_state";
