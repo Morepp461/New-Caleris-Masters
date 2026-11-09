@@ -7,7 +7,7 @@ export const QUERY_PLAN_CASES = [
   ["seasons", "season number", { season_number: -1 }, "uq_seasons_number"],
   ["driver_profiles", "player", { player_id: "__g1_explain__" }, "uq_driver_profiles_player"],
   ["teams", "owner status", { owner_player_id: "__g1_explain__", status: "ACTIVE" }, "ix_teams_owner_status"],
-  ["team_memberships", "player status", { player_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_memberships_player_status"],
+  ["team_memberships", "active player", { player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_memberships_active_player"],
   ["team_memberships", "active player", { player_id: "__g1_explain__", status: "ACTIVE" }, "uq_team_memberships_active_player"],
   ["team_memberships", "team status", { team_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_memberships_team_status"],
   ["team_contracts", "driver status", { driver_player_id: "__g1_explain__", status: "ACTIVE" }, "ix_team_contracts_driver_status"],
