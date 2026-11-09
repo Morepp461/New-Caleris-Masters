@@ -116,18 +116,24 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
       } else if(action==="payroll"){
         if(!rules.enabledWorkflows.payroll)throw new Error("Payroll dinonaktifkan.");
         const memberName=String(input.memberName??"");
+        const prior=await db.collection("economy_workflows").findOne({action:"payroll",season:input.season,period:input.period,"input.memberName":memberName,status:"posted"},{session});
+        if(prior)throw new Error("Payroll anggota ini sudah dibayarkan pada periode tersebut.");
         const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"}).toArray();
         const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===memberName.toLowerCase());
         if(!member)throw new Error("Anggota tidak ditemukan.");
         const role=String(member.row_data?.c3??"Driver"),teamName=String(member.row_data?.c2??"");
-        const salary=money(input.amount??member.row_data?.c7);
+        if(role!=="Driver"&&role!=="FIA")throw new Error("Payroll otomatis hanya tersedia untuk Driver dan FIA. Owner menerima kontribusi off-season, bukan gaji.");
+        const license=String(member.row_data?.c11??"");
+        const seasonalSalary=role==="FIA"?rules.salary.fiaPerSeason:money(member.row_data?.c7);
+        const salary=money(input.amount??Math.round(seasonalSalary/rules.periodsPerSeason));
         if(salary<=0)throw new Error("Gaji harus lebih besar dari nol.");
+        if(role==="Driver"){const band=rules.salary.driverByLicense[license.replace(" License","")]??rules.salary.driverByLicense[license];if(band&&(seasonalSalary<band.min||seasonalSalary>band.max))throw new Error(`Gaji kontrak driver di luar rentang lisensi ${license}: ¢p${band.min}–${band.max} per season.`);}
         const payer=role==="Driver"?team(teamName):bank;
         const payee=driver(memberName);
         if(payer.type==="team"&&await balance(db,payer,input.season,session)<salary)throw new Error("Saldo tim tidak cukup untuk payroll.");
         await add(payer,"Keluar",`Gaji ${role}`,salary,`Gaji ${memberName}, Season ${input.season} Periode ${input.period}`);
         await add(payee,"Masuk",`Gaji ${role}`,salary,`Pembayaran gaji dari ${payer.name}`);
-        result={...result,member:memberName,salary,payer:payer.name};
+        result={...result,member:memberName,salary,seasonalSalary,payer:payer.name};
       } else if(action==="wealth_tax"){
         if(!rules.enabledWorkflows.wealthTax||!rules.wealthTax.enabled)throw new Error("Pajak kekayaan dinonaktifkan.");
         const name=String(input.accountName??""),type=input.accountType==="team"?"team":"individual",a=type==="team"?team(name):driver(name);
