@@ -123,7 +123,7 @@ test("player and team achievements have unique participant-definition pairs", ()
 });
 
 test("all source-defined primary query patterns have explain coverage", () => {
-  assert.equal(QUERY_PLAN_CASES.length, 36);
+  assert.equal(QUERY_PLAN_CASES.length, 38);
   for (const [collection, , , expectedIndex] of QUERY_PLAN_CASES) {
     assert.ok(DOMAIN_COLLECTIONS.includes(collection));
     assert.ok(INDEXES.some(([indexCollection, indexName]) =>
