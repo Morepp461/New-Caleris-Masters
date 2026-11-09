@@ -19,7 +19,7 @@ Implementation basis: Master Development Roadmap Final v1.0, Complete Game Imple
 ## Activation and safety
 All economic rule groups default to disabled. No historical tariff is activated automatically. The blueprint and GDD explicitly leave several economic decisions for approval, including DDP/TDP purchase prices, salary/contract structure, team spending cap, tax rates, loan rules and sponsor schedules. Those values must be configured and approved by the project operator before the relevant rule group is enabled.
 
-No balance is initialized by migration. A wallet starts at zero. A transfer can only debit a funded source account. Production database migration is blocked by default; the Phase 08 workflow targets caleris_masters_dev only.
+No balance is initialized by migration. A wallet starts at zero. A transfer can only debit a funded source account. Production database migration is blocked by default; the Phase 08 workflow targets caleris_masters_dev only. The guarded rollback script requires an explicit confirmation flag and refuses to run if any economy data exists; once data exists, recovery must use a forward-fix/reconciliation plan.
 
 ## Operational API
 - GET /api/v1/economy: authenticated wallet/ledger view; operators receive administration data.
@@ -27,4 +27,4 @@ No balance is initialized by migration. A wallet starts at zero. A transfer can 
 - Every mutation requires same-origin request protection, server-side session authorization, reason where relevant and an idempotency key for postings.
 
 ## Verification
-Unit coverage validates balanced postings, currency isolation, integer precision, non-negative balances, transfer eligibility, idempotency and OFF-by-default rules. CI runs lint, typecheck, unit tests, production build and secret scanning. Migration verification asserts all economy collections remain empty after schema/index setup.
+Unit coverage validates balanced postings, currency isolation, integer precision, non-negative balances, transfer eligibility, idempotent replay matching, optimistic concurrent debit, ledger/cache reconciliation, transaction rollback and OFF-by-default rules. CI runs lint, typecheck, unit tests, production build and secret scanning. Migration verification asserts all economy collections remain empty after schema/index setup.
