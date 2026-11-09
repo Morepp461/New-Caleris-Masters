@@ -99,8 +99,8 @@ test("collections without field tables retain identifier-only baseline validator
     "player_sessions", "team_facilities",
     "operator_actions", "system_jobs", "system_health_logs",
   ]) {
-    assert.equal(COLLECTION_VALIDATORS[name].$jsonSchema.required[0], "_id");
-    assert.deepEqual(Object.keys(COLLECTION_VALIDATORS[name].$jsonSchema.properties), ["_id"]);
+    assert.deepEqual(COLLECTION_VALIDATORS[name].$jsonSchema.required, ["_id", "created_at", "updated_at"]);
+    assert.deepEqual(Object.keys(COLLECTION_VALIDATORS[name].$jsonSchema.properties), ["_id", "created_at", "updated_at"]);
   }
 });
 
@@ -162,5 +162,17 @@ test("field schema catalog has no duplicate field type declarations", () => {
     const fields = Object.entries(spec.t).flatMap(([type, names]) => names.map(name => [name, type]));
     const names = fields.map(([name]) => name);
     assert.equal(new Set(names).size, names.length, `Duplicate type declaration in ${collectionName}`);
+  }
+});
+
+test("all domain entities require immutable ID and UTC timestamp fields", () => {
+  for (const name of DOMAIN_COLLECTIONS) {
+    if (name === "game_settings") continue;
+    const schema = COLLECTION_VALIDATORS[name].$jsonSchema;
+    for (const field of ["_id", "created_at", "updated_at"]) {
+      assert.ok(schema.required.includes(field), `Missing required ${name}.${field}`);
+    }
+    assert.equal(schema.properties.created_at.bsonType, "date");
+    assert.equal(schema.properties.updated_at.bsonType, "date");
   }
 });
