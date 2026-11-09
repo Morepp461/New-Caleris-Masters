@@ -265,6 +265,105 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await db.collection("season_economy_snapshots").insertOne({season:input.season,closed_at:new Date(),closed_by:adminId,member_count:memberRows.length,team_count:teamRows.length,total_circulating:totalCirculating,bank_balance:bankBalance,active_debt:debts.reduce((s,x)=>s+Number(x.remaining??0),0),balances,ruleset_snapshot:rules},{session});
         await db.collection("economy_rulesets").updateOne({season:input.season},{$set:{status:"closed",closed_at:new Date(),closed_by:adminId}},{session});
         result={...result,memberCount:memberRows.length,teamCount:teamRows.length,totalCirculating,bankBalance,activeDebt:debts.reduce((s,x)=>s+Number(x.remaining??0),0)};
+      } else if(action==="team_registration"){
+        if(!rules.enabledWorkflows.teamRegistration)throw new Error("Registrasi tim dinonaktifkan.");
+        const name=String(input.teamName??"").trim(),division=String(input.division??"");
+        const ownerName=String(input.ownerName??"").trim(),engineName=String(input.engineName??"").trim();
+        if(!name||!ownerName||!["Premio","Zwei","Caleris Trees"].includes(division))throw new Error("Nama tim, Owner, dan divisi wajib valid.");
+        const teams=await db.collection("admin_sheet_records").find({sheet_key:"data-tim"},{session}).toArray();
+        if(teams.some(x=>String(x.row_data?.c0??"").toLowerCase()===name.toLowerCase()))throw new Error("Nama tim sudah digunakan.");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");
+        if(!owner)throw new Error("Owner aktif tidak ditemukan.");
+        const fee=money(input.amount??rules.teamRegistrationFees[division]),roleFee=money(input.ownerRoleFee??rules.roleUpgradeFees.Owner??0),total=fee+roleFee;
+        await add(driver(ownerName),"Keluar","Registrasi Tim",total,"Registrasi "+name+" ("+division+") dan biaya role Owner");
+        await add(bank,"Masuk","Registrasi Tim",total,"Biaya registrasi tim "+name);
+        await db.collection("admin_sheet_records").insertOne({sheet_key:"data-tim",row_data:{c0:name,c1:new ObjectId().toString(),c2:division,c3:engineName,c4:new Date().toISOString().slice(0,10),c5:"Aktif",c6:ownerName,c7:"",c8:"",c9:"1",c10:"0",c11:"",c12:"",c13:"Tidak"},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
+        await db.collection("admin_sheet_records").updateOne({_id:owner._id},{$set:{"row_data.c2":name,updated_at:new Date(),updated_by:adminId}},{session});
+        result={...result,team:name,division,owner:ownerName,registrationFee:fee,ownerRoleFee:roleFee,total};
+      } else if(action==="role_upgrade"){
+        if(!rules.enabledWorkflows.roleUpgrade)throw new Error("Upgrade role dinonaktifkan.");
+        const memberName=String(input.memberName??"").trim(),newRole=String(input.newRole??"").trim();
+        if(!memberName||!["Driver","Owner","FIA"].includes(newRole))throw new Error("Role tujuan tidak valid. Role aktif: Driver, Owner, FIA.");
+        if(input.confirmOffSeason!==true)throw new Error("Perubahan role hanya boleh diproses pada off-season dan perlu konfirmasi Admin.");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===memberName.toLowerCase());
+        if(!member)throw new Error("Anggota tidak ditemukan.");
+        const oldRole=String(member.row_data?.c3??"");
+        if(oldRole==="Admin")throw new Error("Role Admin tidak dapat dibeli atau diturunkan.");
+        if(oldRole==="FIA"&&newRole!=="FIA")throw new Error("Role FIA permanen dan tidak dapat di-downgrade.");
+        if(oldRole===newRole)throw new Error("Anggota sudah memiliki role tersebut.");
+        const fee=money(input.amount??rules.roleUpgradeFees[newRole]??0);
+        if(fee<=0)throw new Error("Biaya upgrade role belum dikonfigurasi.");
+        await add(driver(memberName),"Keluar","Upgrade Role",fee,"Upgrade role "+oldRole+" ke "+newRole);
+        await add(bank,"Masuk","Upgrade Role",fee,"Biaya upgrade role "+memberName);
+        await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c3":newRole,updated_at:new Date(),updated_by:adminId}},{session});
+        result={...result,member:memberName,oldRole,newRole,fee};
+      } else if(action==="engine_purchase"){
+        if(!rules.enabledWorkflows.enginePurchase)throw new Error("Pembelian mesin dinonaktifkan.");
+        const buyer=team(String(input.buyerTeam??"")),seller=team(String(input.sellerTeam??""));
+        const engineName=String(input.engineName??"").trim(),price=money(input.amount);
+        if(!engineName||buyer.name===seller.name||price<=0)throw new Error("Data pembelian mesin tidak valid.");
+        const teamRows=await db.collection("admin_sheet_records").find({sheet_key:"data-tim"},{session}).toArray();
+        const sellerRow=teamRows.find(x=>String(x.row_data?.c0??"")===seller.name),buyerRow=teamRows.find(x=>String(x.row_data?.c0??"")===buyer.name);
+        if(!sellerRow||!buyerRow)throw new Error("Tim pembeli atau penjual tidak ditemukan.");
+        if(String(sellerRow.row_data?.c3??"").trim()!==engineName)throw new Error("Mesin tidak tercatat sebagai mesin milik tim penjual.");
+        if(String(buyerRow.row_data?.c3??"").trim())throw new Error("Tim pembeli sudah memiliki mesin.");
+        if(await balance(db,buyer,input.season,session)<price)throw new Error("Saldo tim pembeli tidak cukup.");
+        await add(buyer,"Keluar","Pembelian Mesin",price,"Pembelian "+engineName+" dari "+seller.name);
+        await add(seller,"Masuk","Penjualan Mesin",price,"Penjualan "+engineName+" ke "+buyer.name);
+        await db.collection("admin_sheet_records").updateOne({_id:buyerRow._id},{$set:{"row_data.c3":engineName,updated_at:new Date(),updated_by:adminId}},{session});
+        result={...result,buyer:buyer.name,seller:seller.name,engine:engineName,price};
+      } else if(action==="principal_evaluation"){
+        const ownerName=String(input.ownerName??"").trim(),teamName=String(input.teamName??"").trim();
+        const late=input.lateDriverData===true,inactive=money(input.inactiveDrivers??0),subsidy=money(input.subsidyAmount??rules.salary.ownerContribution);
+        const exempt=input.exemptionApproved===true&&rules.inactive.principalExemptionEnabled;
+        const reduction=(late||inactive>2)&&!exempt?Math.round(subsidy*0.2):0,payout=subsidy-reduction;
+        if(!ownerName||!teamName||inactive<0)throw new Error("Data evaluasi Principal/Owner tidak valid.");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c2??"")===teamName);
+        if(!owner)throw new Error("Owner tim tidak ditemukan.");
+        if(await db.collection("economy_workflows").findOne({action:"principal_evaluation",season:input.season,"input.teamName":teamName,status:"posted"},{session}))throw new Error("Evaluasi subsidi tim untuk season ini sudah dicatat.");
+        if(payout>0){await add(bank,"Keluar","Subsidi Tim (Evaluasi Principal)",payout,"Subsidi "+teamName+"; pengurangan "+reduction);await add(team(teamName),"Masuk","Subsidi Tim (Evaluasi Principal)",payout,"Subsidi setelah evaluasi "+ownerName);}
+        await db.collection("admin_sheet_records").insertOne({sheet_key:"evaluasi-owner",row_data:{c0:"",c1:String(input.season),c2:ownerName,c3:late?"Ya":"Tidak",c4:String(inactive),c5:reduction?"Ya":"Tidak",c6:String(subsidy),c7:String(reduction),c8:exempt?"Pengecualian disetujui Admin":"Evaluasi berdasarkan data Admin",c9:teamName,c10:String(input.period)},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
+        result={...result,owner:ownerName,team:teamName,subsidy,payout,reduction,exempt};
+      } else if(action==="agent_commission"){
+        const agentName=String(input.agentName??"").trim(),transferRef=String(input.transferReference??"").trim(),base=money(input.transferFee??0);
+        if(!agentName||base<=0||!transferRef)throw new Error("Nama Agent, referensi transfer, dan biaya transfer wajib diisi.");
+        if(await db.collection("economy_workflows").findOne({action:"agent_commission",season:input.season,"input.transferReference":transferRef,status:"posted"},{session}))throw new Error("Komisi untuk referensi transfer ini sudah dibayarkan.");
+        const amount=Math.round(base*0.05);
+        await add(bank,"Keluar","Komisi Agent (Legacy Delegation)",amount,"Komisi 5% transfer "+transferRef);
+        await add(driver(agentName),"Masuk","Komisi Agent (Legacy Delegation)",amount,"Komisi transfer "+transferRef);
+        result={...result,agent:agentName,transferReference:transferRef,commissionBase:base,rate:0.05,amount};
+      } else if(action==="journalist_bonus"){
+        const journalist=String(input.journalistName??"").trim(),contentId=String(input.contentId??"").trim(),views=money(input.views??0),invites=money(input.verifiedInvites??0);
+        if(!journalist||!contentId||views<=rules.salary.journalistViewThreshold||invites<1)throw new Error("Bonus mensyaratkan konten >5.000 views dan minimal satu member referral terverifikasi.");
+        if(await db.collection("economy_workflows").findOne({action:"journalist_bonus",season:input.season,"input.contentId":contentId,status:"posted"},{session}))throw new Error("Konten ini sudah pernah menerima bonus.");
+        const amount=rules.salary.journalistViewBonus;
+        await add(bank,"Keluar","Bonus Konten Jurnalis",amount,"Konten "+contentId+"; "+views+" views; "+invites+" referral valid");
+        await add(driver(journalist),"Masuk","Bonus Konten Jurnalis",amount,"Bonus konten "+contentId);
+        result={...result,journalist,contentId,views,verifiedInvites:invites,amount};
+      } else if(action==="fia_performance_bonus"){
+        const fiaName=String(input.memberName??"").trim(),amount=money(input.amount);
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const fia=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===fiaName.toLowerCase()&&String(x.row_data?.c3??"")==="FIA");
+        if(!fia||amount<=0)throw new Error("Anggota FIA atau nominal bonus tidak valid.");
+        if(await db.collection("economy_workflows").findOne({action:"fia_performance_bonus",season:input.season,"input.memberName":fiaName,status:"posted"},{session}))throw new Error("Bonus performa FIA season ini sudah dibayarkan.");
+        await add(bank,"Keluar","Bonus Performa FIA",amount,"Bonus performa FIA Season "+input.season);
+        await add(driver(fiaName),"Masuk","Bonus Performa FIA",amount,"Bonus evaluasi Admin");
+        result={...result,fia:fiaName,amount};
+      } else if(action==="daily_reward"){
+        const memberName=String(input.memberName??"").trim(),rewardType=String(input.rewardType??"");
+        const allowed=["Daily Check-in","Poster After-Race (Driver)","Poster Sosmed (Driver)"],amount=money(rules.tariffs[rewardType]??0);
+        if(!memberName||!allowed.includes(rewardType)||amount<=0)throw new Error("Jenis reward atau tarif tidak valid.");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===memberName.toLowerCase()&&String(x.row_data?.c3??"")==="Driver");
+        if(!member)throw new Error("Reward ini hanya untuk Driver aktif.");
+        const day=String(input.date??new Date().toISOString().slice(0,10));
+        if(await db.collection("economy_workflows").findOne({action:"daily_reward",season:input.season,"input.memberName":memberName,"input.rewardType":rewardType,"input.date":day,status:"posted"},{session}))throw new Error("Reward jenis ini sudah diklaim hari ini.");
+        await add(bank,"Keluar",rewardType,amount,"Reward "+memberName+" tanggal "+day);
+        await add(driver(memberName),"Masuk",rewardType,amount,"Reward aktivitas Driver");
+        result={...result,member:memberName,rewardType,amount,date:day};
       } else if(action==="manual_pair"){
         const fromType=input.fromType==="bank"?"bank":input.fromType==="team"?"team":"individual";
         const toType=input.toType==="bank"?"bank":input.toType==="team"?"team":"individual";
