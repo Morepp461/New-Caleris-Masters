@@ -1,0 +1,60 @@
+name: Phase 09 Attributes Development R&D Migration
+on:
+  push:
+    branches: [main]
+    paths: ["scripts/db/migrate-phase-09.mjs", ".github/workflows/phase-09-dev-migration.yml"]
+  workflow_dispatch:
+    inputs:
+      confirm_development_database:
+        description: "Ketik RUN-DEV untuk migrasi ke caleris_masters_dev"
+        required: true
+        type: string
+permissions:
+  contents: read
+concurrency:
+  group: phase-09-dev-migration
+  cancel-in-progress: false
+jobs:
+  migrate-development:
+    name: Apply and verify Phase 09 migration (development only)
+    if: github.event_name == 'push' || inputs.confirm_development_database == 'RUN-DEV'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" || "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::MONGODB_URI_DEV is required and this workflow only targets caleris_masters_dev."
+            exit 1
+          fi
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - run: npm install --no-audit --no-fund
+      - run: npm run db:migrate:phase-09
+      - name: Verify Phase 09 migration is additive and seeds no values
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          const client = new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 2 });
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+            const migration = await db.collection("schema_migrations").findOne({ _id: "009-attributes-development-rnd" });
+            assert.ok(migration);
+            assert.equal(migration.database, "caleris_masters_dev");
+            assert.equal(migration.seeds_created, 0);
+            assert.equal(await db.collection("development_rulesets").countDocuments({}), 0);
+            assert.equal(await db.collection("rnd_projects").countDocuments({}), 0);
+            console.log("Verified Phase 09 migration; no prices, rulesets, projects or balances seeded.");
+          } finally { await client.close(); }
+          NODE

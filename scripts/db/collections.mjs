@@ -7,7 +7,7 @@ export const DOMAIN_COLLECTIONS = [
   "game_settings", "divisions", "seasons", "season_rulesets", "circuits", "circuit_versions",
   "driver_profiles", "teams", "team_memberships", "team_contracts", "team_engines", "team_facilities",
   "account_level_rules", "player_xp_events", "quests", "quest_assignments", "quest_progress",
-  "quest_claims", "development_wallets", "development_transactions", "development_history",
+  "quest_claims", "development_wallets", "development_transactions", "development_history", "development_rulesets", "rnd_projects",
   "race_calendars", "race_events", "race_entries", "race_sessions", "race_simulation_inputs",
   "race_states", "race_checkpoints", "race_event_logs", "race_results", "race_penalties",
   "championships", "championship_standings", "season_snapshots",
