@@ -4,12 +4,14 @@ import assert from "node:assert/strict";
 import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, LEGACY_INDEXES_TO_DROP, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
 
 test("domain collection catalog matches the supplied data dictionary", () => {
-  assert.equal(DOMAIN_COLLECTIONS.length, 63);
+  assert.equal(DOMAIN_COLLECTIONS.length, 65);
   assert.equal(new Set(DOMAIN_COLLECTIONS).size, DOMAIN_COLLECTIONS.length);
   assert.ok(DOMAIN_COLLECTIONS.includes("players"));
   assert.ok(DOMAIN_COLLECTIONS.includes("ledger_entries"));
   assert.ok(DOMAIN_COLLECTIONS.includes("race_sessions"));
   assert.ok(DOMAIN_COLLECTIONS.includes("outbox_events"));
+  assert.ok(DOMAIN_COLLECTIONS.includes("development_rulesets"));
+  assert.ok(DOMAIN_COLLECTIONS.includes("rnd_projects"));
   assert.ok(!DOMAIN_COLLECTIONS.includes("role_history"));
 });
 
