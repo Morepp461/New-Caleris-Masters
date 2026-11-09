@@ -17,6 +17,7 @@ This phase follows the approved CALERIS MASTERS project sources and ADR-0003. Di
 - Centralized permission checks using `permissions` and `role_permission_policies`; default deny when policy is absent.
 - Operator-only Discord identity linking for an existing active player.
 - Operator-only role assignment for the defined game roles. Operator authority remains `players.is_operator`; FIA is not an operator.
+- Same-origin checks on logout and all operator mutation endpoints.
 - Authentication and identity audit records in the existing `audit_logs` collection.
 - Versioned Phase 03 migration script for the session validator and indexes.
 - Landing-page Player Access link now starts Discord login.
