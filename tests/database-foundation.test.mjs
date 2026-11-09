@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
+import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
 
 test("domain collection catalog matches the supplied data dictionary", () => {
   assert.equal(DOMAIN_COLLECTIONS.length, 63);
@@ -79,4 +79,26 @@ test("race event round is unique within season and division", () => {
 test("index names are unique per collection", () => {
   const names = INDEXES.map(([collection, name]) => `${collection}.${name}`);
   assert.equal(new Set(names).size, names.length);
+});
+
+test("source-defined field schemas cover all collections with dictionary tables", () => {
+  assert.equal(Object.keys(FIELD_SCHEMA_CATALOG).length, 57);
+  assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
+  assert.deepEqual(COLLECTION_VALIDATORS.players.$jsonSchema.required, [
+    "_id", "username", "display_name", "active_role", "account_status",
+    "level", "xp", "total_xp", "is_operator", "created_at", "updated_at",
+  ]);
+  assert.equal(COLLECTION_VALIDATORS.players.$jsonSchema.properties.xp.bsonType, "long");
+  assert.equal(COLLECTION_VALIDATORS.players.$jsonSchema.properties.primary_team_id.bsonType[1], "null");
+  assert.equal(COLLECTION_VALIDATORS.race_results.$jsonSchema.properties.points_awarded.bsonType, "decimal");
+});
+
+test("collections without field tables retain identifier-only baseline validators", () => {
+  for (const name of [
+    "player_sessions", "team_facilities", "team_achievements",
+    "operator_actions", "system_jobs", "system_health_logs",
+  ]) {
+    assert.equal(COLLECTION_VALIDATORS[name].$jsonSchema.required[0], "_id");
+    assert.deepEqual(Object.keys(COLLECTION_VALIDATORS[name].$jsonSchema.properties), ["_id"]);
+  }
 });
