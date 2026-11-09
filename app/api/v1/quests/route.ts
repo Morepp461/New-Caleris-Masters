@@ -87,7 +87,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   const activeAssignment=await db.collection<Doc>("quest_assignments").findOne({quest_id:questId,target_type:targetType,target_id:targetId,status:{$in:["ASSIGNED","IN_PROGRESS","REVIEW_REQUIRED","COMPLETED"]}});
   if(activeAssignment)throw fail("QUEST_ASSIGNMENT_EXISTS","An active assignment for this quest and target already exists.");
   const stamp=now();
-  let recurrenceKey=typeof body.recurrenceKey==="string"?body.recurrenceKey:null;
+  let recurrenceKey=typeof body.recurrenceKey==="string"?readString(body.recurrenceKey,"recurrenceKey",{max:128}):null;
   if(quest.recurrence==="DAILY"||quest.recurrence==="WEEKLY"){
    const window=getUtcRecurrenceWindow(stamp,String(quest.recurrence));
    recurrenceKey=String(quest.recurrence)+":"+window;
@@ -107,7 +107,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   }
   const expiresAt=quest.expiry_seconds?new Date(stamp.getTime()+Number(quest.expiry_seconds)*1000):null;
   const id=randomUUID();
-  await db.collection<Doc>("quest_assignments").insertOne({_id:id,quest_id:questId,target_type:targetType,target_id:targetId,assigned_at:stamp,expires_at:expiresAt,status:"ASSIGNED",recurrence_key:recurrenceKey,created_at:stamp,updated_at:stamp});
+  await db.collection<Doc>("quest_assignments").insertOne({_id:id,quest_id:questId,target_type:targetType,target_id:targetId,assigned_at:stamp,expires_at:expiresAt,status:"ASSIGNED",recurrence_key:recurrenceKey??("ASSIGNMENT:"+id),created_at:stamp,updated_at:stamp});
   await db.collection<Doc>("quest_progress").insertOne({_id:randomUUID(),assignment_id:id,current_progress:{},completion_status:"IN_PROGRESS",evidence:[],evidence_verified:false,created_at:stamp,updated_at:stamp});
   await audit(db,actorId,"QUEST_ASSIGNED",id,{questId,targetType,targetId});
   return success({assignmentId:id,status:"ASSIGNED",expiresAt},meta,201);
