@@ -23,7 +23,7 @@ const audit = async (db: Awaited<ReturnType<typeof getMongoDatabase>>, actorId: 
 export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const principal = await getSessionPrincipal(request); await requireOperator(principal);
   const db = await getMongoDatabase();
-  const [divisions, seasons, calendars, events, championships] = await Promise.all([
+  const [divisions, seasons, calendars, events, championships, rulesets, circuits, entries] = await Promise.all([
     db.collection<Doc>("divisions").find({}).sort({ display_order: 1, tier: 1 }).toArray(),
     db.collection<Doc>("seasons").find({}).sort({ season_number: -1 }).toArray(),
     db.collection<Doc>("race_calendars").find({}).sort({ created_at: -1 }).limit(100).toArray(),
@@ -40,6 +40,29 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   const db = await getMongoDatabase();
   const divisions = db.collection<Doc>("divisions"), seasons = db.collection<Doc>("seasons");
   const actorId = principal!.playerId;
+  if (action === "CREATE_CIRCUIT") {
+    const name = readString(body.name, "name", { min: 3, max: 100 });
+    const country = readString(body.country, "country", { min: 2, max: 60 });
+    const city = readString(body.city, "city", { min: 2, max: 60 });
+    const circuitType = readString(body.circuitType, "circuitType", { max: 30 }).toUpperCase();
+    if (await db.collection<Doc>("circuits").findOne({ name })) throw fail("CIRCUIT_EXISTS", "Circuit name already exists.");
+    const id = randomUUID(), stamp = now();
+    await db.collection<Doc>("circuits").insertOne({ _id: id, name, country, city, circuit_type: circuitType, status: "ACTIVE", created_at: stamp, updated_at: stamp });
+    await audit(db, actorId, "CIRCUIT_CREATED", "CIRCUIT", id, undefined, { name, country, city, circuitType });
+    return success({ circuitId: id }, meta, 201);
+  }
+  if (action === "CREATE_CIRCUIT_VERSION") {
+    const circuitId = readString(body.circuitId, "circuitId", { max: 64 });
+    const circuit = await db.collection<Doc>("circuits").findOne({ _id: circuitId, status: "ACTIVE" });
+    if (!circuit) throw new AppError("CIRCUIT_NOT_FOUND", "Active circuit not found.", 404);
+    const trackLengthMeters = Number(body.trackLengthMeters), totalCorners = Number(body.totalCorners);
+    if (!Number.isSafeInteger(trackLengthMeters) || trackLengthMeters < 100 || !Number.isSafeInteger(totalCorners) || totalCorners < 1) throw new AppError("INVALID_CIRCUIT_VERSION", "Track length and corner count must be valid positive integers.", 400);
+    const previous = await db.collection<Doc>("circuit_versions").find({ circuit_id: circuitId }).sort({ version: -1 }).limit(1).next();
+    const id = randomUUID(), stamp = now(), version = Number(previous?.version ?? 0) + 1;
+    await db.collection<Doc>("circuit_versions").insertOne({ _id: id, circuit_id: circuitId, version, track_length_meters: trackLengthMeters, total_corners: totalCorners, track_segments: Array.isArray(body.trackSegments) ? body.trackSegments : [], drs_zones: Array.isArray(body.drsZones) ? body.drsZones : [], pit_lane_data: body.pitLaneData && typeof body.pitLaneData === "object" ? body.pitLaneData : {}, track_metadata: body.trackMetadata && typeof body.trackMetadata === "object" ? body.trackMetadata : {}, created_at: stamp, updated_at: stamp });
+    await audit(db, actorId, "CIRCUIT_VERSION_CREATED", "CIRCUIT_VERSION", id, undefined, { circuitId, version, trackLengthMeters, totalCorners });
+    return success({ circuitVersionId: id, version }, meta, 201);
+  }
   if (action === "CREATE_DIVISION") {
     const name = readString(body.name, "name", { min: 3, max: 60 });
     const code = readString(body.code, "code", { min: 2, max: 12 }).toUpperCase();
@@ -119,6 +142,16 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     await audit(db, actorId, action === "AMEND_RULESET" ? "RULESET_AMENDMENT_CREATED" : "RULESET_CREATED", "SEASON_RULESET", id, previous[0] ? { rulesetId: previous[0]._id, version: previous[0].version } : undefined, { version, seasonId, divisionId });
     return success({ rulesetId: id, version, status: "DRAFT" }, meta, 201);
   }
+  if (action === "UPDATE_RULESET") {
+    const rulesetId = readString(body.rulesetId, "rulesetId", { max: 64 });
+    const rules = { calendar_rules: body.calendarRules, scoring_rules: body.scoringRules, penalty_rules: body.penaltyRules, race_rules: body.raceRules, economy_rules: body.economyRules, eligibility_rules: body.eligibilityRules };
+    const validation = validateRuleset(rules); if (!validation.ok) throw new AppError(validation.reason!, "Ruleset configuration is incomplete or invalid.", 400);
+    const draft = await db.collection<Doc>("season_rulesets").findOne({ _id: rulesetId, status: "DRAFT" });
+    if (!draft) throw fail("RULESET_NOT_DRAFT", "Only a draft ruleset can be edited.");
+    await db.collection<Doc>("season_rulesets").updateOne({ _id: rulesetId, status: "DRAFT" }, { $set: { ...rules, updated_at: now() } });
+    await audit(db, actorId, "RULESET_DRAFT_UPDATED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { updated: true });
+    return success({ rulesetId, updated: true }, meta);
+  }
   if (action === "LOCK_RULESET") {
     const rulesetId = readString(body.rulesetId, "rulesetId", { max: 64 });
     const ruleset = await db.collection<Doc>("season_rulesets").findOne({ _id: rulesetId, status: "DRAFT" });
@@ -126,14 +159,14 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const [season, division] = await Promise.all([seasons.findOne({ _id: ruleset.season_id }), divisions.findOne({ _id: ruleset.division_id, status: { $ne: "ARCHIVED" } })]);
     if (!season || !division || ["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("RULESET_SCOPE_CLOSED", "Ruleset scope is not available.");
     await db.collection<Doc>("season_rulesets").updateOne({ _id: rulesetId, status: "DRAFT" }, { $set: { status: "LOCKED", approved_by: actorId, approved_at: now(), updated_at: now() } });
-    await audit(db, actorId, "RULESET_LOCKED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { status: "LOCKED" });
+    await db.collection<Doc>("race_calendars").updateMany({ season_id: ruleset.season_id, division_id: ruleset.division_id, status: "ACTIVE" }, { $set: { ruleset_id: rulesetId, updated_at: now() } });\n    await audit(db, actorId, "RULESET_LOCKED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { status: "LOCKED" });
     return success({ rulesetId, status: "LOCKED" }, meta);
   }
   if (action === "CREATE_CALENDAR") {
     const seasonId = readString(body.seasonId, "seasonId", { max: 64 }), divisionId = readString(body.divisionId, "divisionId", { max: 64 }), totalRounds = Number(body.totalRounds);
     if (!validateCalendarRoundCount(totalRounds)) throw new AppError("INVALID_ROUND_COUNT", "Total rounds must be an integer between 1 and 100.", 400);
     const [season, division, ruleset] = await Promise.all([seasons.findOne({ _id: seasonId }), divisions.findOne({ _id: divisionId, status: "ACTIVE" }), db.collection<Doc>("season_rulesets").findOne({ season_id: seasonId, division_id: divisionId, status: "LOCKED" }, { sort: { version: -1 } })]);
-    if (!season || !division || !ruleset) throw fail("CALENDAR_SETUP_INCOMPLETE", "An active division, season and locked ruleset are required.");
+    if (!season || !["PLANNED", "REGISTRATION"].includes(String(season.status)) || !division || !ruleset) throw fail("CALENDAR_SETUP_INCOMPLETE", "A planned/registration season, active division and locked ruleset are required.");
     if (await db.collection<Doc>("race_calendars").findOne({ season_id: seasonId, division_id: divisionId })) throw fail("CALENDAR_EXISTS", "A calendar already exists for this season and division.");
     const id = randomUUID(), stamp = now();
     await db.collection<Doc>("race_calendars").insertOne({ _id: id, season_id: seasonId, division_id: divisionId, status: "DRAFT", total_rounds: totalRounds, ruleset_id: ruleset._id, created_at: stamp, updated_at: stamp });
