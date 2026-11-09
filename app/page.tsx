@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 const stats = [
   { label: "MEMBERS", value: "00", note: "The grid is waiting" },
   { label: "TEAMS", value: "00", note: "No constructors registered" },
@@ -40,6 +42,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#universe">THE UNIVERSE</a>
+          <Link href="/teams">TEAMS</Link>
           <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>

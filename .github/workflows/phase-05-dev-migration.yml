@@ -1,0 +1,115 @@
+name: Phase 05 Development Database Migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/db/migrate-phase-05.mjs"
+      - "scripts/db/collections.mjs"
+      - "scripts/db/field-schema-catalog.json"
+      - ".github/workflows/phase-05-dev-migration.yml"
+  workflow_dispatch:
+    inputs:
+      confirm_development_database:
+        description: "Ketik RUN-DEV untuk mengizinkan migrasi ke caleris_masters_dev"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-05-dev-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-development:
+    name: Apply and verify Phase 05 migration (development only)
+    if: github.event_name == 'push' || inputs.confirm_development_database == 'RUN-DEV'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" ]]; then
+            echo "::error::Repository secret MONGODB_URI_DEV is missing."
+            exit 1
+          fi
+          if [[ "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::This workflow is restricted to caleris_masters_dev."
+            exit 1
+          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Apply Phase 05 migration
+        run: npm run db:migrate:phase-05
+      - name: Verify migration, validators, indexes, settings and empty baseline
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          const client = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 2,
+            serverSelectionTimeoutMS: 10000,
+            appName: "caleris-masters-phase-05-verification",
+          });
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+            const migration = await db.collection("schema_migrations").findOne({
+              _id: "004-teams-membership-contracts-transfer",
+            });
+            assert.ok(migration, "Phase 05 migration record is missing.");
+            assert.equal(migration.database, "caleris_masters_dev");
+            assert.equal(migration.collection_count, 2);
+            assert.equal(migration.index_count, 6);
+
+            for (const name of ["team_transfer_requests", "team_ownership_history"]) {
+              const info = await db.listCollections({ name }).next();
+              assert.ok(info, "Missing collection: " + name);
+              assert.equal(info.options?.validationLevel, "strict");
+              assert.equal(info.options?.validationAction, "error");
+              assert.ok(info.options?.validator?.$jsonSchema, "Missing JSON schema validator: " + name);
+              assert.equal(await db.collection(name).countDocuments({}), 0, "Unexpected seed data in " + name);
+            }
+
+            const settings = await db.collection("game_settings").findOne({ _id: "team_management_rules" });
+            assert.equal(settings?.value?.driver_slots_per_team, 2);
+            assert.deepEqual(settings?.value?.registration_fee_minor, { PREMIO: 25000, ZWEI: 15000 });
+
+            const driverInfo = await db.listCollections({ name: "driver_profiles" }).next();
+            assert.deepEqual(driverInfo?.options?.validator?.$jsonSchema?.properties?.license_tier?.enum,
+              ["BRONZE", "SILVER", "GOLD", "SUPER_LICENSE"]);
+
+            const transferIndexes = await db.collection("team_transfer_requests").listIndexes().toArray();
+            const uniqueTransfer = transferIndexes.find(x => x.name === "uq_team_transfer_open_team");
+            assert.ok(uniqueTransfer?.unique, "Open transfer duplicate-prevention index missing.");
+            assert.deepEqual(uniqueTransfer.partialFilterExpression, { status: { $in: ["NEGOTIATING", "SUBMITTED"] } });
+
+            const contractIndexes = await db.collection("team_contracts").listIndexes().toArray();
+            const uniqueContract = contractIndexes.find(x => x.name === "uq_team_contracts_open_driver");
+            assert.ok(uniqueContract?.unique, "Open driver contract duplicate-prevention index missing.");
+            assert.deepEqual(uniqueContract.partialFilterExpression, { status: { $in: ["OFFERED", "ACTIVE"] } });
+
+            for (const name of ["players", "teams", "team_memberships", "team_contracts"]) {
+              assert.equal(await db.collection(name).countDocuments({}), 0,
+                "Phase 05 migration must preserve the empty initial state: " + name);
+            }
+            console.log("Verified Phase 05 migration, strict validators, six indexes, team rules and zero-seed game state.");
+          } finally {
+            await client.close();
+          }
+          NODE
