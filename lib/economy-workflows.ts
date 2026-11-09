@@ -382,7 +382,13 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(entry.amount<=0)throw new Error("Nominal transaksi harus positif.");
         if(entry.direction==="Keluar"&&entry.account.type!=="bank"){
           const available=await balance(db,entry.account,input.season,session);
-          if(available<entry.amount)throw new Error(`Saldo ${entry.account.name} tidak cukup.`);
+          if(available<entry.amount)throw new Error("Saldo "+entry.account.name+" tidak cukup.");
+          if(entry.account.type==="team"&&action!=="reverse_workflow"){
+            const teamRows=await db.collection("admin_sheet_records").find({sheet_key:"transaksi","row_data.c2":entry.account.name,"row_data.c9":String(input.season),voided:{$ne:true}},{session}).toArray();
+            const income=teamRows.reduce((sum,row)=>sum+(row.row_data?.c3==="Masuk"?money(row.row_data?.c6):0),0);
+            const expenses=teamRows.reduce((sum,row)=>sum+(row.row_data?.c3==="Keluar"?money(row.row_data?.c6):0),0);
+            if(income<=0||expenses+entry.amount>Math.floor(income*rules.teamExpenseLimitRate))throw new Error("Transaksi ditolak: batas pengeluaran tim "+(rules.teamExpenseLimitRate*100)+"% dari income season terlampaui.");
+          }
         }
         if(entry.account.type==="bank"){
           const bankBalance=await balance(db,entry.account,input.season,session);
