@@ -36,6 +36,7 @@ export const DEFAULT_RULESET: Omit<CalerisRuleset, "season" | "name" | "status">
   prizeMoney: { enabled: true, first: 50000, second: 40000, decrementPerPosition: 2000, minimum: 0 },
   salary: {
     driverByLicense: {
+      Amateur: { min: 2000, max: 3700 },
       Bronze: { min: 3750, max: 7500 },
       Silver: { min: 7525, max: 12500 },
       Gold: { min: 12525, max: 37500 },
