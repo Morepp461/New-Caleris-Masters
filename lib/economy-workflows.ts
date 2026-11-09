@@ -386,7 +386,8 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         else if(activity==="inactive"||activity==="timeout_week")points=-10;
         else throw new Error("Jenis aktivitas lisensi tidak dikenal.");
         const next=Math.max(0,Number(scoreDoc?.score??0)+points);
-        const license=next>=85?"Super License":next>=60?"Gold License":next>=40?"Silver License":"Bronze License";
+        const currentLicense=String(member.row_data?.c11??"Bronze License");
+        const license=scoreDoc?(next>=85?"Super License":next>=60?"Gold License":next>=40?"Silver License":"Bronze License"):currentLicense;
         await db.collection("license_activity").insertOne({event_id:eventId,member_name:memberName,season:input.season,period:input.period,activity:reason,points,created_by:adminId,created_at:new Date()},{session});
         await db.collection("license_scores").updateOne({member_name:memberName,season:input.season},{$set:{score:next,license,updated_at:new Date(),updated_by:adminId},$setOnInsert:{member_name:memberName,season:input.season,created_at:new Date()}},{upsert:true,session});
         await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c11":license,updated_at:new Date(),updated_by:adminId}},{session});
