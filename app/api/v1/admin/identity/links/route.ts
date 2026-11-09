@@ -17,7 +17,8 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   await requireOperator(principal);
   const body = requireJsonObject(await request.json());
   const playerId = readString(body.playerId, "playerId", { max: 64 });
-  const discordUserId = readString(body.discordUserId, "discordUserId", { min: 5, max: 32 });
+  const discordUserId = readString(body.discordUserId, "discordUserId", { min: 17, max: 20 });
+  if (!/^\\d{17,20}$/.test(discordUserId)) throw new AppError("INVALID_DISCORD_ID", "Discord user ID must be a numeric snowflake.", 400);
   const client = await getMongoClient();
   const db = await getMongoDatabase();
   const authAccountId = randomUUID();
