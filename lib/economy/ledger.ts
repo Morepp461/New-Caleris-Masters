@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { Long, type ClientSession, type Db } from "mongodb";
+import { Decimal128, Long, type ClientSession, type Db } from "mongodb";
 import { getMongoClient, getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { AppError } from "@/lib/server/errors";
@@ -8,7 +8,7 @@ import { assertBalancedPostings, canPostMoneyTransfer, toMinorUnits, validateIde
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc = { _id: string; [key: string]: any };
 type EconomyRules = { token_purchase_rules: { enabled: boolean; minimum_purchase?: number; ddp_price_minor?: number; tdp_price_minor?: number; system_account_id?: string }; [key: string]: unknown };
-type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string };
+type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string; rulesetVersion?: number };
 const now = () => new Date();
 const asLong = (value: number | string | bigint) => Long.fromString(String(value));
 async function audit(db: Db, session: ClientSession, actorId: string, action: string, targetType: string, targetId: string, reason: string, after?: unknown) {
@@ -50,7 +50,7 @@ export async function postMoneyTransfer(input: TransferInput) {
     if (credit.modifiedCount !== 1) throw new AppError("ACCOUNT_CONFLICT", "Destination wallet changed during posting.", 409);
     const postings = [{ direction: "CREDIT", amountMinor: amount, currency: source!.currency }, { direction: "DEBIT", amountMinor: amount, currency: destination!.currency }];
     assertBalancedPostings(postings);
-    await transactions.insertOne({ _id: id, transaction_type: "TRANSFER", category: input.category, currency: source!.currency, amount_minor: asLong(amount), source_account_id: source!._id, destination_account_id: destination!._id, reason, reference_type: input.referenceType ?? "OPERATOR_TRANSFER", reference_id: input.referenceId ?? null, event_id: randomUUID(), idempotency_key: key, ruleset_id: input.rulesetId ?? null, status: "POSTED", description: reason, created_by: input.actorId, created_at: stamp, updated_at: stamp }, { session });
+    await transactions.insertOne({ _id: id, transaction_type: "TRANSFER", category: input.category, currency: source!.currency, amount_minor: asLong(amount), source_account_id: source!._id, destination_account_id: destination!._id, reason, reference_type: input.referenceType ?? "OPERATOR_TRANSFER", reference_id: input.referenceId ?? null, event_id: randomUUID(), idempotency_key: key, ruleset_id: input.rulesetId ?? null, ruleset_version: input.rulesetVersion ?? null, status: "POSTED", description: reason, created_by: input.actorId, created_at: stamp, updated_at: stamp }, { session });
     await db.collection<Doc>("ledger_entries").insertMany([
       { _id: randomUUID(), transaction_id: id, account_id: source!._id, direction: "CREDIT", amount_minor: asLong(amount), currency: source!.currency, balance_after_minor: asLong(sourceAfter), created_at: stamp, updated_at: stamp },
       { _id: randomUUID(), transaction_id: id, account_id: destination!._id, direction: "DEBIT", amount_minor: asLong(amount), currency: destination!.currency, balance_after_minor: asLong(destinationAfter), created_at: stamp, updated_at: stamp },
@@ -96,7 +96,7 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
     if (existing) return { transactionId: existing._id, replayed: true };
     const cost = amount * Number(price);
     if (!Number.isSafeInteger(cost) || cost <= 0) throw new AppError("TOKEN_PRICE_OVERFLOW", "Configured token price exceeds supported integer range.", 400);
-    const result = await postMoneyTransferInSession(db, session, { sourceAccountId: input.accountId, destinationAccountId: rule.system_account_id, amountMinor: cost, category: input.tokenType + "_PURCHASE", reason: input.tokenType + " purchase under approved economy ruleset " + ruleset.version + ".", actorId: input.actorId, idempotencyKey: key, rulesetId: ruleset._id });
+    const result = await postMoneyTransferInSession(db, session, { sourceAccountId: input.accountId, destinationAccountId: rule.system_account_id, amountMinor: cost, category: input.tokenType + "_PURCHASE", reason: input.tokenType + " purchase under approved economy ruleset " + ruleset.version + ".", actorId: input.actorId, idempotencyKey: key, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
     const token = await grantTokensInSession(db, session, { ownerType: input.ownerType, ownerId: input.ownerId, tokenType: input.tokenType, amount, actorId: input.actorId, idempotencyKey: key + ":TOKEN", sourceId: result.transactionId, rulesetVersion: ruleset.version });
     return { transactionId: result.transactionId, tokenTransactionId: token.transactionId, tokenBalance: token.balance, costMinor: cost, replayed: false };
   });
@@ -153,5 +153,67 @@ export async function closeEconomyPeriod(input: { periodId: string; actorId: str
     if (updated.modifiedCount !== 1) throw new AppError("PERIOD_CONFLICT", "Period was closed by another operation.", 409);
     await audit(db, session, input.actorId, "ECONOMY_PERIOD_CLOSED", "ECONOMY_PERIOD", period._id, reason, report);
     return { periodId: period._id, status: "CLOSED", report };
+  });
+}
+
+const ECONOMY_RULE_GROUPS = new Set(["salary_rules","reward_rules","prize_rules","penalty_rules","tax_rules","fee_rules","transfer_rules","inactive_penalty_rules","spending_cap_rules","limits_rules","maintenance_rules"]);
+export async function postConfiguredMoneyMovement(input: TransferInput & { seasonId: string; ruleGroup: string }) {
+  if (!ECONOMY_RULE_GROUPS.has(input.ruleGroup)) throw new AppError("INVALID_RULE_GROUP", "Unsupported economy rule group.", 400);
+  const db = await getMongoDatabase();
+  const ruleset = await db.collection<Doc>("economy_rulesets").findOne({ season_id: input.seasonId, status: "ACTIVE" }, { sort: { version: -1 } });
+  const validation = validateEconomyRules(ruleset ?? {}) as { ok: boolean; value?: Record<string, { enabled: boolean }>; reason?: string };
+  if (!ruleset || !validation.ok || !validation.value?.[input.ruleGroup]?.enabled) throw new AppError("ECONOMY_RULE_DISABLED", "This transaction type is disabled by the active economy ruleset.", 403);
+  return postMoneyTransfer({ ...input, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
+}
+export async function issueTeamLoan(input: { teamId: string; teamAccountId: string; amountMinor: number; seasonId: string; actorId: string; reason: string; idempotencyKey: string }) {
+  const amount = toMinorUnits(input.amountMinor), reason = validateReason(input.reason), key = validateIdempotencyKey(input.idempotencyKey);
+  const db = await getMongoDatabase(), client = await getMongoClient();
+  return withMongoTransaction(client, async (session) => {
+    const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
+    if (existing) {
+      const loan = await db.collection<Doc>("loans").findOne({ transaction_id: existing._id }, { session });
+      if (!loan || loan.team_id !== input.teamId) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key belongs to a different operation.", 409);
+      return { loanId: loan._id, transactionId: existing._id, status: loan.status, replayed: true };
+    }
+    const ruleset = await db.collection<Doc>("economy_rulesets").findOne({ season_id: input.seasonId, status: "ACTIVE" }, { sort: { version: -1 }, session });
+    const validation = validateEconomyRules(ruleset ?? {}) as { ok: boolean; value?: { loan_rules: { enabled: boolean; maximum_loan_minor?: number; eligibility_balance_minor?: number; due_days?: number; interest_rate_bps?: number; system_account_id?: string } }; reason?: string };
+    if (!ruleset || !validation.ok || !validation.value?.loan_rules.enabled) throw new AppError("LOANS_DISABLED", "Loans are disabled by the active economy ruleset.", 403);
+    const rule = validation.value.loan_rules;
+    if (amount > Number(rule.maximum_loan_minor) || !rule.system_account_id) throw new AppError("LOAN_LIMIT_EXCEEDED", "Requested loan exceeds the approved ruleset limit.", 400);
+    const team = await db.collection<Doc>("teams").findOne({ _id: input.teamId, status: "ACTIVE" }, { session });
+    const teamAccount = await db.collection<Doc>("economy_accounts").findOne({ _id: input.teamAccountId, owner_type: "TEAM", owner_id: input.teamId, currency: "CP", status: "ACTIVE" }, { session });
+    if (!team || !teamAccount) throw new AppError("TEAM_WALLET_NOT_FOUND", "Active team and its CP wallet are required.", 404);
+    if (BigInt(String(teamAccount.available_balance_minor)) >= BigInt(rule.eligibility_balance_minor!)) throw new AppError("TEAM_NOT_ELIGIBLE", "Team wallet does not meet the approved loan eligibility condition.", 409);
+    const activeLoan = await db.collection<Doc>("loans").findOne({ team_id: input.teamId, status: "ACTIVE" }, { session });
+    if (activeLoan) throw new AppError("ACTIVE_LOAN_EXISTS", "A team may not open another loan while an earlier loan is active.", 409);
+    const loanId = randomUUID(), dueAt = new Date(Date.now() + Number(rule.due_days) * 86400000), stamp = now();
+    const transfer = await postMoneyTransferInSession(db, session, { sourceAccountId: rule.system_account_id, destinationAccountId: input.teamAccountId, amountMinor: amount, category: "LOAN_ISSUED", reason, actorId: input.actorId, idempotencyKey: key, referenceType: "LOAN", referenceId: loanId, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
+    await db.collection<Doc>("loans").insertOne({ _id: loanId, team_id: input.teamId, principal_minor: asLong(amount), remaining_principal_minor: asLong(amount), interest_rate: Decimal128.fromString((Number(rule.interest_rate_bps) / 10000).toFixed(4)), interest_accrued_minor: Long.ZERO, issued_at: stamp, due_at: dueAt, status: "ACTIVE", system_account_id: rule.system_account_id, ruleset_id: ruleset._id, ruleset_version: ruleset.version, transaction_id: transfer.transactionId, created_by: input.actorId, version: Long.fromInt(1), created_at: stamp, updated_at: stamp }, { session });
+    await audit(db, session, input.actorId, "TEAM_LOAN_ISSUED", "LOAN", loanId, reason, { teamId: input.teamId, principalMinor: amount, dueAt, rulesetVersion: ruleset.version });
+    return { loanId, transactionId: transfer.transactionId, status: "ACTIVE", replayed: false };
+  });
+}
+export async function repayTeamLoan(input: { loanId: string; teamAccountId: string; amountMinor: number; actorId: string; reason: string; idempotencyKey: string }) {
+  const amount = toMinorUnits(input.amountMinor), reason = validateReason(input.reason), key = validateIdempotencyKey(input.idempotencyKey);
+  const db = await getMongoDatabase(), client = await getMongoClient();
+  return withMongoTransaction(client, async (session) => {
+    const prior = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
+    if (prior) {
+      if (prior.reference_id !== input.loanId || prior.category !== "LOAN_REPAYMENT") throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key belongs to a different operation.", 409);
+      return { transactionId: prior._id, status: "POSTED", replayed: true };
+    }
+    const loan = await db.collection<Doc>("loans").findOne({ _id: input.loanId, status: "ACTIVE" }, { session });
+    if (!loan) throw new AppError("LOAN_NOT_ACTIVE", "Loan is not active or does not exist.", 404);
+    const account = await db.collection<Doc>("economy_accounts").findOne({ _id: input.teamAccountId, owner_type: "TEAM", owner_id: loan.team_id, currency: "CP", status: "ACTIVE" }, { session });
+    if (!account || !loan.system_account_id) throw new AppError("LOAN_ACCOUNT_INVALID", "Team repayment wallet or linked bank account is missing.", 409);
+    const interest = BigInt(String(loan.interest_accrued_minor ?? 0)), principal = BigInt(String(loan.remaining_principal_minor)), outstanding = interest + principal;
+    if (BigInt(amount) > outstanding) throw new AppError("OVERPAYMENT_NOT_ALLOWED", "Repayment cannot exceed the recorded outstanding loan amount.", 400);
+    const interestPaid = BigInt(amount) < interest ? BigInt(amount) : interest, principalPaid = BigInt(amount) - interestPaid;
+    const interestAfter = interest - interestPaid, principalAfter = principal - principalPaid, stamp = now();
+    const transfer = await postMoneyTransferInSession(db, session, { sourceAccountId: input.teamAccountId, destinationAccountId: loan.system_account_id, amountMinor: amount, category: "LOAN_REPAYMENT", reason, actorId: input.actorId, idempotencyKey: key, referenceType: "LOAN", referenceId: input.loanId, rulesetId: loan.ruleset_id, rulesetVersion: loan.ruleset_version });
+    const updated = await db.collection<Doc>("loans").updateOne({ _id: loan._id, status: "ACTIVE", remaining_principal_minor: loan.remaining_principal_minor, interest_accrued_minor: loan.interest_accrued_minor }, { $set: { remaining_principal_minor: asLong(principalAfter), interest_accrued_minor: asLong(interestAfter), status: principalAfter === 0n && interestAfter === 0n ? "PAID" : "ACTIVE", last_repayment_at: stamp, updated_at: stamp }, $inc: { version: Long.fromInt(1) } }, { session });
+    if (updated.modifiedCount !== 1) throw new AppError("LOAN_CONFLICT", "Loan changed during repayment.", 409);
+    await audit(db, session, input.actorId, "TEAM_LOAN_REPAID", "LOAN", loan._id, reason, { transactionId: transfer.transactionId, amountMinor: amount, principalRemainingMinor: principalAfter.toString(), interestRemainingMinor: interestAfter.toString() });
+    return { transactionId: transfer.transactionId, loanId: loan._id, status: principalAfter === 0n && interestAfter === 0n ? "PAID" : "ACTIVE", principalRemainingMinor: principalAfter.toString(), interestRemainingMinor: interestAfter.toString(), replayed: false };
   });
 }
