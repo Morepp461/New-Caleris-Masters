@@ -18,7 +18,8 @@
     "db:migrate:phase-04": "node scripts/db/migrate-phase-04.mjs",
     "db:migrate:phase-05": "node scripts/db/migrate-phase-05.mjs",
     "db:migrate:phase-06": "node scripts/db/migrate-phase-06.mjs",
-    "db:migrate:phase-07": "node scripts/db/migrate-phase-07.mjs"
+    "db:migrate:phase-07": "node scripts/db/migrate-phase-07.mjs",
+    "db:migrate:phase-08": "node scripts/db/migrate-phase-08.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
