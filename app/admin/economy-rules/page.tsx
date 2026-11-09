@@ -2,9 +2,8 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, Save, RefreshCw, Settings2, Plus, Trash2 } from "lucide-react";
+import { ArrowLeft, Save, RefreshCw, Settings2, Plus } from "lucide-react";
 
-type Value = string | number | boolean | Record<string, unknown>;
 const labels: Record<string,string> = {
   season:"Season", name:"Nama Ruleset", status:"Status", currency:"Mata Uang",
   balancingEveryRaces:"Race per Periode Balancing", periodsPerSeason:"Periode per Season",
@@ -31,7 +30,6 @@ const labels: Record<string,string> = {
   min:"Minimum", max:"Maksimum", draft:"Draft", active:"Aktif", closed:"Ditutup"
 };
 const pctKeys = new Set(["teamExpenseLimitRate","rate","driverBalanceCutRate","lateInterestPerPeriod"]);
-const moneyKeys = new Set(["bankOpeningBalance","threshold","individualThreshold","teamThreshold","teamFine","eligibilityBalanceBelow","maxPerRequest","driverCostPerPoint","carCostPerPoint","participation","zeroFines","guaranteed","zeroDebt","balanceBelow","payout","first","second","decrementPerPosition","minimum","principalMinimum","ownerContribution","agentPerSeason","journalistPerSeason","journalistViewBonus","fiaPerSeason"]);
 function label(key:string){return labels[key]??key.replace(/([A-Z])/g," $1").replace(/^./,s=>s.toUpperCase());}
 function updateAt(source:Record<string,unknown>, path:string[], value:unknown):Record<string,unknown>{
   const [head,...tail]=path;
