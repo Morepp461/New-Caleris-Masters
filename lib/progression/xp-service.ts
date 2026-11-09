@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { ClientSession, Db } from "mongodb";
-type PlayerRecord={_id:string;account_status:string;total_xp?:number;xp?:number;[key:string]:any};
+type PlayerRecord={_id:string;account_status:string;total_xp?:number;xp?:number;[key:string]:unknown};
 type XpEventRecord={_id:string;[key:string]:any};
 type LevelRuleRecord={_id:string;level:number;required_total_xp:number;status:string;[key:string]:any};
 import { calculateAccountLevel, validateXpEvent } from "./policy.mjs";
