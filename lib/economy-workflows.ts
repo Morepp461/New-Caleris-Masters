@@ -26,7 +26,8 @@ async function balance(db: Awaited<ReturnType<typeof getDatabase>>, account: Acc
   const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": account.name };
   if (season) filter["row_data.c9"] = String(season);
   const rows = await db.collection("admin_sheet_records").find(filter, { session }).toArray();
-  return rows.reduce((s,x)=>s+(x.row_data?.c3==="Masuk"?money(x.row_data?.c6):x.row_data?.c3==="Keluar"?-money(x.row_data?.c6):0),0);
+  const opening = season ? await db.collection("opening_balances").findOne({season,account_name:account.name,account_type:account.type},{session}) : null;
+  return Number(opening?.balance ?? 0) + rows.reduce((s,x)=>s+(x.row_data?.c3==="Masuk"?money(x.row_data?.c6):x.row_data?.c3==="Keluar"?-money(x.row_data?.c6):0),0);
 }
 
 async function writeEntry(db: Awaited<ReturnType<typeof getDatabase>>, session: any, adminId: string, account: Account, direction: Direction, category: string, amount: number, input: WorkflowInput, description = "", refId: string) {
@@ -220,6 +221,11 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const debts=await db.collection("bank_loans").find({season:input.season,status:{$in:["active","overdue"]}},{session}).toArray();
         const bankBalance=await balance(db,bank,input.season,session);
         const totalCirculating=balances.reduce((s,x)=>s+x.balance,0);
+        for(const item of balances){await db.collection("opening_balances").updateOne({season:input.season+1,account_name:item.name,account_type:item.type},{$set:{balance:item.balance,source_season:input.season,created_at:new Date()}},{upsert:true,session});}
+        await db.collection("opening_balances").updateOne({season:input.season+1,account_name:"Vreeo Bank",account_type:"bank"},{$set:{balance:bankBalance,source_season:input.season,created_at:new Date()}},{upsert:true,session});
+        for(const m of memberRows){const name=String(m.row_data?.c1??"");if(!name)continue;await db.collection("admin_sheet_records").insertOne({sheet_key:"riwayat-season-individu",row_data:{c0:"",c1:String(input.season),c2:name,c3:String(m.row_data?.c3??""),c4:String(m.row_data?.c2??""),c5:String(m.row_data?.c6??""),c6:String(balances.find(x=>x.name===name)?.balance??0),c7:String(m.row_data?.c3??""),c8:String(m.row_data?.c2??""),c9:String(m.row_data?.c6??"")},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});}
+        if(input.championPremio||input.championZwei){await db.collection("admin_sheet_records").insertOne({sheet_key:"hall-of-fame",row_data:{c0:String(input.season),c1:String(input.championPremio??""),c2:String(input.championZwei??"")},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});}
+        await db.collection("admin_sheet_records").insertOne({sheet_key:"riwayat-season-ekonomi",row_data:{c0:"",c1:String(input.season),c2:new Date().toISOString().slice(0,10),c3:String(memberRows.length),c4:String(totalCirculating),c5:String(bankBalance),c6:String(debts.reduce((s,x)=>s+Number(x.remaining??0),0))},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
         await db.collection("season_economy_snapshots").insertOne({season:input.season,closed_at:new Date(),closed_by:adminId,member_count:memberRows.length,team_count:teamRows.length,total_circulating:totalCirculating,bank_balance:bankBalance,active_debt:debts.reduce((s,x)=>s+Number(x.remaining??0),0),balances,ruleset_snapshot:rules},{session});
         await db.collection("economy_rulesets").updateOne({season:input.season},{$set:{status:"closed",closed_at:new Date(),closed_by:adminId}},{session});
         result={...result,memberCount:memberRows.length,teamCount:teamRows.length,totalCirculating,bankBalance,activeDebt:debts.reduce((s,x)=>s+Number(x.remaining??0),0)};
