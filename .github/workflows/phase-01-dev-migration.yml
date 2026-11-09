@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - chore/phase-01-migration-acceptance
+      - fix/phase-01-test-assertions
 
 permissions:
   contents: read
