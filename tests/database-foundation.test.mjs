@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DOMAIN_COLLECTIONS, INDEXES, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
+import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
 
 test("domain collection catalog matches the supplied data dictionary", () => {
   assert.equal(DOMAIN_COLLECTIONS.length, 63);
@@ -45,9 +45,17 @@ test("race event has one active authoritative session", () => {
   ]);
 });
 
-test("UUID baseline validator requires only immutable string _id", () => {
+test("UUID baseline validator enforces UUID v4 string identifiers", () => {
   assert.deepEqual(UUID_BASELINE_VALIDATOR.$jsonSchema.required, ["_id"]);
   assert.equal(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
+  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\[0-9a-f\]/);
+});
+
+test("natural-key collection is not incorrectly constrained to UUID", () => {
+  assert.deepEqual(COLLECTION_VALIDATORS.game_settings, NATURAL_KEY_BASELINE_VALIDATOR);
+  assert.equal(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
+  assert.equal(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, undefined);
+  assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
 });
 
 test("division names and codes are both unique", () => {
