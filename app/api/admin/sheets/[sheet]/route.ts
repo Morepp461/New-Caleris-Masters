@@ -10,7 +10,7 @@ export async function GET(_request:NextRequest,{params}:{params:Promise<{sheet:s
  const {sheet}=await params;const definition=getAdminSheet(sheet);if(!definition)return NextResponse.json({error:"Sheet tidak ditemukan."},{status:404});
  const db=await getDatabase();
  const records=await db.collection("admin_sheet_records").find(sheet==="transaksi"?{sheet_key:sheet,voided:{$ne:true}}:{sheet_key:sheet}).sort({sort_order:1,created_at:-1}).limit(500).toArray();
- return NextResponse.json({records:records.map(r=>({...r,id:(r._id as ObjectId).toString(),_id:undefined}))});
+ return NextResponse.json({records:records.map(r=>({...r,row_data:sheet==="transaksi"?{...(r.row_data??{}),c10:r.reference_id??""}:r.row_data,id:(r._id as ObjectId).toString(),_id:undefined}))});
 }
 export async function POST(request:NextRequest,{params}:{params:Promise<{sheet:string}>}){
  const admin=await authorized();if(!admin)return NextResponse.json({error:"Unauthorized"},{status:401});
