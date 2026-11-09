@@ -11,8 +11,8 @@ type EconomyRules = { token_purchase_rules: { enabled: boolean; minimum_purchase
 type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string; rulesetVersion?: number; actorType?: "PLAYER" | "OPERATOR" };
 const now = () => new Date();
 const asLong = (value: number | string | bigint) => Long.fromString(String(value));
-async function audit(db: Db, session: ClientSession, actorId: string, action: string, targetType: string, targetId: string, reason: string, after?: unknown) {
-  await db.collection<Doc>("audit_logs").insertOne({ _id: randomUUID(), actor_type: "OPERATOR", actor_id: actorId, action, target_type: targetType, target_id: targetId, reason, ...(after ? { after_state: after } : {}), created_at: now(), updated_at: now() }, { session });
+async function audit(db: Db, session: ClientSession, actorId: string, action: string, targetType: string, targetId: string, reason: string, after?: unknown, actorType: "PLAYER" | "OPERATOR" = "OPERATOR") {
+  await db.collection<Doc>("audit_logs").insertOne({ _id: randomUUID(), actor_type: actorType, actor_id: actorId, action, target_type: targetType, target_id: targetId, reason, ...(after ? { after_state: after } : {}), created_at: now(), updated_at: now() }, { session });
 }
 export async function createEconomyAccount(input: { ownerType: string; ownerId: string; currency?: string; actorId: string }) {
   validateAccountOwner(input.ownerType, input.ownerId);
