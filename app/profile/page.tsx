@@ -1,5 +1,5 @@
-import Link from "next/link";
 "use client";
+import Link from "next/link";
 import {useEffect,useState} from "react";
 type Profile={username:string;displayName:string;avatarUrl:string|null;activeRole:string;level:number;profileVisibility:Record<string,boolean>|null};
 const labels:Record<string,string>={display_name:"Display name",avatar_url:"Avatar",active_role:"Active role",level:"Account level",driver_name:"Driver name",driver_number:"Driver number"};
