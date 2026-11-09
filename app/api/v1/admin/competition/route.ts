@@ -86,7 +86,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);
     if (["ARCHIVED"].includes(String(division.status))) throw fail("DIVISION_ARCHIVED", "Archived divisions cannot be edited.");
     const patch: Record<string, unknown> = { updated_at: now() };
-    if (body.name !== undefined) patch.name = readString(body.name, "name", { min: 3, max: 60 });
+    if (body.name !== undefined) { const nextName = readString(body.name, "name", { min: 3, max: 60 }); const duplicate = await divisions.findOne({ name: nextName, _id: { $ne: divisionId } }); if (duplicate) throw fail("DIVISION_NAME_EXISTS", "Division name already exists."); patch.name = nextName; }
     if (body.description !== undefined) patch.description = readString(body.description, "description", { min: 0, max: 500 });
     if (body.tier !== undefined) { const tier = Number(body.tier); if (!Number.isSafeInteger(tier) || tier < 1 || tier > 20) throw new AppError("INVALID_TIER", "Tier must be an integer from 1 to 20.", 400); patch.tier = tier; }
     if (body.displayOrder !== undefined) { const order = Number(body.displayOrder); if (!Number.isSafeInteger(order) || order < 1) throw new AppError("INVALID_DISPLAY_ORDER", "Display order must be a positive integer.", 400); patch.display_order = order; }
@@ -190,7 +190,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   if (action === "CREATE_EVENT") {
     const calendarId = readString(body.calendarId, "calendarId", { max: 64 }), circuitId = readString(body.circuitId, "circuitId", { max: 64 }), circuitVersionId = readString(body.circuitVersionId, "circuitVersionId", { max: 64 });
     const roundNumber = Number(body.roundNumber), totalLaps = Number(body.totalLaps), raceFormat = readString(body.raceFormat, "raceFormat", { max: 24 }).toUpperCase(), scheduledStartAt = new Date(String(body.scheduledStartAt));
-    if (!Number.isSafeInteger(roundNumber) || roundNumber < 1 || !Number.isSafeInteger(totalLaps) || totalLaps < 1 || Number.isNaN(scheduledStartAt.getTime())) throw new AppError("INVALID_EVENT_CONFIGURATION", "Round, laps and scheduled start must be valid.", 400);
+    if (!Number.isSafeInteger(roundNumber) || roundNumber < 1 || !Number.isSafeInteger(totalLaps) || totalLaps < 1 || Number.isNaN(scheduledStartAt.getTime()) || !["FEATURE", "SPRINT", "ENDURANCE", "TIME_TRIAL"].includes(raceFormat)) throw new AppError("INVALID_EVENT_CONFIGURATION", "Round, laps, race format and scheduled start must be valid.", 400);
     const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: "ACTIVE" });
     if (!calendar || roundNumber > Number(calendar.total_rounds)) throw fail("CALENDAR_NOT_AVAILABLE", "Calendar is unavailable or round exceeds configured rounds.");
     const [circuit, circuitVersion, ruleset] = await Promise.all([db.collection<Doc>("circuits").findOne({ _id: circuitId, status: "ACTIVE" }), db.collection<Doc>("circuit_versions").findOne({ _id: circuitVersionId, circuit_id: circuitId }), db.collection<Doc>("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" })]);
