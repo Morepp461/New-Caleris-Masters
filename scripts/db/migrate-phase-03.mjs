@@ -84,7 +84,7 @@ try {
     await sessions.createIndex({ player_id: 1, status: 1, expires_at: 1 }, { name: "ix_player_sessions_player_status_expiry" });
     await db.collection("auth_accounts").createIndex(
       { provider: 1, player_id: 1 },
-      { name: "uq_auth_accounts_provider_player", unique: true, partialFilterExpression: { provider: "discord" } },
+      { name: "uq_auth_accounts_provider_player", unique: true, partialFilterExpression: { provider: "discord", status: { $in: ["PENDING", "ACTIVE"] } } },
     );
     await db.collection("audit_logs").createIndex({ action: 1, created_at: 1 }, { name: "ix_audit_logs_action_created" });
 
