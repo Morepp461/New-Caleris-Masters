@@ -36,7 +36,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
       player_id: playerId,
       provider: "discord",
       provider_user_id: discordUserId,
-      provider_email: "pending-verification@invalid.local",
+      provider_email: "",
       linked_at: now,
     }, { session });
     await db.collection("audit_logs").insertOne({
