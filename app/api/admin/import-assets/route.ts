@@ -35,6 +35,19 @@ export async function POST(request: NextRequest) {
       { $set: { ...team, _assetUpdatedAt: new Date(), _assetUpdatedBy: admin.id } },
       { upsert: true }
     );
+    const roster = backup.members.filter((member: any) => member.tim === team.nama);
+    const owner = roster.find((member: any) => member.role === "Owner");
+    const principal = roster.find((member: any) => member.role === "Principal");
+    const drivers = roster.filter((member: any) => member.role === "Driver").map((member: any) => member.nama);
+    await memberCollection.updateOne(
+      { sheet_key: "data-tim", source_id: String(team.id) },
+      { $set: {
+        sheet_key: "data-tim", source_id: String(team.id),
+        row_data: { c0: team.nama, c1: team.teamId ?? "", c2: team.kategori ?? "", c3: team.engine ?? "", c4: team.tanggalRegistrasi ?? "", c5: team.status ?? "", c6: owner?.nama ?? "", c7: principal?.nama ?? "", c8: drivers.join(", "), c9: String(roster.length), c10: String(team.poin ?? 0), c11: team.parentTeam ?? "", c12: [team.asalKota, team.asalNegara].filter(Boolean).join(", "), c13: team.hakVetoPermanen ? "Ya" : "Tidak" },
+        updated_at: new Date(), assets_imported_at: new Date()
+      }, $setOnInsert: { created_at: new Date(), created_by: admin.id }, $set: { updated_by: admin.id } },
+      { upsert: true }
+    );
     if (typeof team.logo === "string" && team.logo.startsWith("data:image/")) teamAssets++;
   }
   await db.collection("audit_logs").insertOne({ action: "backup.assets.imported", actor_id: admin.id, metadata: { memberAssets, teamAssets, members: backup.members.length, teams: backup.teams.length }, created_at: new Date() });
