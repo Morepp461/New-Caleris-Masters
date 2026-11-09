@@ -10,7 +10,7 @@ export default function DevelopmentConsole(){
  const [seasonId,setSeasonId]=useState(""),[rulesetId,setRulesetId]=useState(""),[rulesJson,setRulesJson]=useState("");
  const [projectKey,setProjectKey]=useState("");
  const load=useCallback(async()=>{const r=await fetch("/api/v1/development",{cache:"no-store"});const j=await r.json();if(!r.ok)throw new Error(j.error?.message??"Development data unavailable.");setData(j.data);},[]);
- useEffect(()=>{void load().catch(e=>setError(e.message));},[load]);
+ useEffect(()=>{void Promise.resolve().then(load).catch(e=>setError(e.message));},[load]);
  async function act(action:string,payload:Record<string,unknown>={}){setBusy(true);setError("");setMessage("");try{const r=await fetch("/api/v1/development",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action,...payload})});const j=await r.json();if(!r.ok)throw new Error(j.error?.message??action+" failed");setMessage(action+" completed.");await load();return j.data;}catch(e){setError(e instanceof Error?e.message:"Request failed.");throw e;}finally{setBusy(false);}}
  async function upgrade(e:React.FormEvent){e.preventDefault();try{const owner=ownerType==="PLAYER"?data?.driverProfiles.find(x=>x.player_id===ownerId):data?.teams.find(x=>x._id===ownerId);await act("UPGRADE_ATTRIBUTE",{ownerType,ownerId:ownerType==="PLAYER"?owner?.player_id:owner?._id,attributeKey,newValue:Number(newValue),reason,idempotencyKey:crypto.randomUUID()});setNewValue("");setReason("");}catch{}}
  async function createRules(e:React.FormEvent){e.preventDefault();try{const r=await act("CREATE_RULESET",{seasonId});setRulesetId(r.rulesetId);setRulesJson(JSON.stringify(r.rules,null,2));}catch{}}
