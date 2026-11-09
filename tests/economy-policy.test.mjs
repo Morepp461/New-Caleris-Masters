@@ -33,3 +33,16 @@ test("transfer policy rejects frozen, mismatched and underfunded accounts", () =
   assert.equal(canPostMoneyTransfer({ sourceAccount: source, destinationAccount: destination, amountMinor: 101, idempotencyKey: "transfer-003" }).reason, "INSUFFICIENT_FUNDS");
   assert.equal(canPostMoneyTransfer({ sourceAccount: { ...source, status: "FROZEN" }, destinationAccount: destination, amountMinor: 10, idempotencyKey: "transfer-004" }).reason, "ACCOUNT_NOT_ACTIVE");
 });
+
+test("quest rewards and development rewards remain OFF until an operator enables their rules", () => {
+  const defaults = defaultEconomyRules();
+  assert.equal(defaults.quest_reward_rules.enabled, false);
+  assert.equal(defaults.development_reward_rules.enabled, false);
+  assert.equal(validateEconomyRules({ ...defaults, quest_reward_rules: { enabled: true } }).reason, "QUEST_REWARDS_REQUIRE_FUNDED_SYSTEM_ACCOUNT");
+});
+test("loan rules require explicit limits and block unimplemented interest accrual", () => {
+  const defaults = defaultEconomyRules();
+  const approvedPrincipalOnly = { enabled: true, system_account_id: "123e4567-e89b-42d3-a456-426614174000", maximum_loan_minor: 100000, eligibility_balance_minor: 5000, due_days: 30, interest_rate_bps: 0 };
+  assert.equal(validateEconomyRules({ ...defaults, loan_rules: approvedPrincipalOnly }).ok, true);
+  assert.equal(validateEconomyRules({ ...defaults, loan_rules: { ...approvedPrincipalOnly, interest_rate_bps: 500 } }).reason, "INTEREST_ACCRUAL_RULE_NOT_APPROVED_OR_IMPLEMENTED");
+});
