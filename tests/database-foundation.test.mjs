@@ -147,3 +147,20 @@ test("a driver can have at most one active team contract", () => {
   assert.deepEqual(index[2].keys, { driver_player_id: 1 });
   assert.deepEqual(index[2].partialFilterExpression, { status: "ACTIVE" });
 });
+
+test("every required field has a declared BSON property type", () => {
+  for (const [collectionName, validator] of Object.entries(COLLECTION_VALIDATORS)) {
+    const schema = validator.$jsonSchema;
+    for (const field of schema.required) {
+      assert.ok(schema.properties[field], `Required field ${collectionName}.${field} has no BSON type declaration`);
+    }
+  }
+});
+
+test("field schema catalog has no duplicate field type declarations", () => {
+  for (const [collectionName, spec] of Object.entries(FIELD_SCHEMA_CATALOG)) {
+    const fields = Object.entries(spec.t).flatMap(([type, names]) => names.map(name => [name, type]));
+    const names = fields.map(([name]) => name);
+    assert.equal(new Set(names).size, names.length, `Duplicate type declaration in ${collectionName}`);
+  }
+});
