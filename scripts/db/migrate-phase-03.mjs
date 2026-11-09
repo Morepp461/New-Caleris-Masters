@@ -11,6 +11,7 @@ const migrationDefinition = {
     ["uq_player_sessions_token_hash", { session_token_hash: 1 }, { unique: true }],
     ["ix_player_sessions_player_status_expiry", { player_id: 1, status: 1, expires_at: 1 }, {}],
   ],
+  authAccountIndex: ["uq_auth_accounts_provider_player", { provider: 1, player_id: 1 }, { unique: true, partialFilterExpression: { provider: "discord" } }],
   auditIndex: ["ix_audit_logs_action_created", { action: 1, created_at: 1 }],
 };
 const checksum = createHash("sha256").update(JSON.stringify(migrationDefinition)).digest("hex");
@@ -81,6 +82,10 @@ try {
     const sessions = db.collection("player_sessions");
     await sessions.createIndex({ session_token_hash: 1 }, { name: "uq_player_sessions_token_hash", unique: true });
     await sessions.createIndex({ player_id: 1, status: 1, expires_at: 1 }, { name: "ix_player_sessions_player_status_expiry" });
+    await db.collection("auth_accounts").createIndex(
+      { provider: 1, player_id: 1 },
+      { name: "uq_auth_accounts_provider_player", unique: true, partialFilterExpression: { provider: "discord" } },
+    );
     await db.collection("audit_logs").createIndex({ action: 1, created_at: 1 }, { name: "ix_audit_logs_action_created" });
 
     await migrations.insertOne({
@@ -89,9 +94,9 @@ try {
       applied_at: new Date(),
       database: databaseName,
       collection_count: 0,
-      index_count: 3,
+      index_count: 4,
     });
-    console.log(`Applied ${migrationId}: session validator and 3 indexes.`);
+    console.log(`Applied ${migrationId}: session validator and 4 indexes.`);
   }
 } finally {
   await client.close();
