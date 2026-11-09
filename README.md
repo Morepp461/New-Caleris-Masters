@@ -1,58 +1,57 @@
 # New Caleris Masters
 
-Caleris Masters is a motorsport roleplay management platform. The foundation follows the VML portal's dark editorial motorsport direction: restrained red and gold accents, Anton headlines, and Inter body text.
+Caleris Masters is a motorsport roleplay management platform. The initial release focuses on the private, admin-only workbook workspace: one admin dashboard with one page per workbook sheet.
 
-## Foundation included
+## Stack
 
-- Next.js App Router, React, and TypeScript.
-- Responsive command-center dashboard.
-- Economy calculation helpers in `lib/economy.ts`.
-- Initial Supabase schema and row-level security policies in `supabase/migrations/`.
-- Empty initial state: 0 members, 0 teams, ¢p0 circulating, 0 completed races, balancing period 0, season 0.
-- No sample members, teams, or financial transactions are seeded.
-- FIA is a separate role and is not treated as an unrestricted administrator.
+- Next.js App Router, React, TypeScript.
+- MongoDB Atlas with the official Node.js driver.
+- Server-side admin authentication using scrypt password hashing and HTTP-only session cookies.
+- Responsive dark motorsport editorial interface.
 
-## Economy rules encoded
+## Initial state
 
-- Active Premio driver salary: ¢p1,000 per race.
-- Active Zwei driver salary: ¢p500 per race.
-- Principal and inactive members receive no automatic driver salary.
-- Team wealth tax uses the principal's balance, not the sum of team members.
-- Wealth-tax tiers: up to ¢p150,000 = 0%; above ¢p150,000 through ¢p300,000 = 5%; above ¢p300,000 = 10%.
-- Vreeo Bank late interest: simple interest, 5% of principal per late day, without compounding.
-- Driver transfer tax: 10% when gross transfer is greater than ¢p50,000; the selling team's principal receives the net amount and the buying team's principal is charged the gross transfer.
-- Inactive fine: ¢p1,000 standard, or ¢p50,000 when a proxy/fraudulent check-in is confirmed.
-- Wealth-tax and fine logs are deducted from the affected principal/member balance directly; do not also create duplicate expense transactions.
-- Loan disbursements and repayments remain separate ledger transactions, while the loan register tracks due dates and simple late interest.
-- Sponsorship T1 is calculated from each active team driver's five check-ins in that balancing period; T2 and T4 are derived from fine and bank-debt records; T3 remains a manual sponsor-funds confirmation.
-- One balancing period covers 5 races.
-- Sponsorship components: T1 ¢p50,000, T2 ¢p40,000, T3 ¢p30,000, T4 ¢p10,000 (maximum ¢p130,000).
+- 0 members, 0 teams, 0 drivers and 0 financial transactions.
+- Circulating balance ¢p0.
+- Race 0, period 0, season 0.
+- No historical workbook rows are imported.
 
-**Source caveat:** the uploaded reference named `FIXXRPCALERIS.xlsx` is actually a 22-page PDF. Its printed tax bands overlap at exactly ¢p150,000. This foundation assigns exactly ¢p150,000 to the 0% tier to avoid overlapping bands. Verify that boundary against the original workbook formulas before enabling automatic production posting. The source document did not expose the original spreadsheet formulas.
+## MongoDB collections
 
-## Run locally
+- `admin_users`: single administrator identity and password hash.
+- `admin_sessions`: server-side sessions with automatic TTL expiration.
+- `admin_sheet_records`: admin-only workbook records, partitioned by sheet key.
+- `audit_logs`: audit event storage for future CRUD and finance auditing.
+- `app_settings`: application configuration storage.
+
+Indexes are initialized automatically by the application using the restricted MongoDB application user. The app user requires `readWrite` on `caleris_masters`.
+
+## Environment variables
+
+Configure these in local `.env.local` and the Vercel project settings:
+
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@new-caleris-masters.3mzhxb3.mongodb.net/?retryWrites=true&w=majority
+MONGODB_DB=caleris_masters
+ADMIN_EMAIL=your-admin-email@example.com
+ADMIN_PASSWORD=your-long-unique-password
+ADMIN_DISPLAY_NAME=Caleris Administrator
+```
+
+The first login bootstraps the only administrator using `ADMIN_EMAIL` and `ADMIN_PASSWORD`. Keep these values private. Never commit `.env.local` or expose the MongoDB URI to browser code.
+
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-## Supabase setup
+## Security notes
 
-1. The database migrations 001–006 are applied to the active `Clrs Mstr 2` Supabase project. Do not apply them again to that project.
-2. Set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` from that project's API settings in local `.env.local` and the Vercel project's Environment Variables.
-3. Create the first admin account in Supabase Authentication, then copy its Auth user UUID.
-4. In the SQL Editor, link that Auth user to the platform admin profile with the one-time statement below, replacing the UUID and display name:
-
-   ```sql
-   insert into public.member_profiles (user_id, display_name, role, status)
-   values ('AUTH_USER_UUID', 'Administrator', 'admin', 'active');
-   ```
-
-5. The admin profile is excluded from the member count. Do not create sample member, team, season, or transaction rows.
-
-The command center reads live counts, member balances, team balances, the transaction ledger, and bank loans from Supabase. Member, team, finance and bank screens are currently read-only; create/edit workflows are the next implementation stage. Never expose the Supabase service-role key in browser code.
-
-## Permission model
-
-`admin` is the unrestricted platform administrator. `fia` is a separate role and is deliberately not granted administrator policies by default. FIA capabilities should be granted narrowly by module after the final role matrix is approved.
+- The Atlas application user is restricted to `readWrite` on the Caleris database; it is not an Atlas administrator.
+- The application validates the admin session on server-rendered pages and every admin API route.
+- Session cookies are HTTP-only, SameSite strict, and secure in production.
+- Passwords are stored as salted scrypt hashes, never as plaintext.
+- Expired sessions are automatically removed by a MongoDB TTL index.
+- Do not remove the legacy Supabase project until all remaining Supabase data and workflows have been audited and intentionally retired.
