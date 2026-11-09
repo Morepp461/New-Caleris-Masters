@@ -75,7 +75,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await add(from,"Masuk","Income Transfer (Jual Driver)",gross-tax,`Penjualan ${driverName} ke ${to.name}`);
         if(tax)await add(bank,"Masuk","Pajak Transfer Driver",tax,`Pajak transfer ${driverName}`);
         await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c2":to.name,updated_at:new Date(),updated_by:adminId}},{session});
-        await db.collection("driver_transfers").insertOne({reference_id:refId,driver:driverName,from_team:from.name,to_team:to.name,gross_amount:gross,tax,net_amount:gross-tax,season:input.season,period:input.period,created_at:new Date(),created_by:adminId},{session});
+        await db.collection("driver_transfers").insertOne({reference_id:refId,driver:driverName,from_team:from.name,to_team:to.name,gross_amount:gross,tax,net_amount:gross-tax,season:input.season,period:input.period,created_at:new Date(),created_by:adminId},{session});\n        await db.collection("admin_sheet_records").insertOne({sheet_key:"riwayat-transfer-driver",row_data:{c0:"",c1:String(input.date??new Date().toISOString().slice(0,10)),c2:driverName,c3:from.name,c4:to.name,c5:String(gross),c6:tax>0?"Ya":"Tidak",c7:String(tax),c8:String(gross-tax),c9:"Transfer disahkan",c10:String(input.period),c11:String(input.season)},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
         result={...result,driver:driverName,gross,tax,net:gross-tax};
       } else if(action==="loan_issue"){
         if(!rules.loans.enabled||!rules.enabledWorkflows.loans)throw new Error("Pinjaman dinonaktifkan.");
@@ -92,7 +92,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
       } else if(action==="loan_repay"){
         const loanId=String(input.loanId??"");if(!ObjectId.isValid(loanId))throw new Error("ID pinjaman tidak valid.");
         const loan=await db.collection("bank_loans").findOne({_id:new ObjectId(loanId)},{session});if(!loan||!["active","overdue"].includes(loan.status))throw new Error("Pinjaman aktif tidak ditemukan.");
-        const repayment=money(input.amount),periods=Math.max(0,input.period-Number(loan.due_period));
+        const repayment=money(input.amount),currentGlobal=(input.season-1)*rules.periodsPerSeason+input.period,dueGlobal=(Number(loan.season)-1)*rules.periodsPerSeason+Number(loan.due_period),periods=Math.max(0,currentGlobal-dueGlobal);
         const interest=periods>0?Math.round(Number(loan.remaining)*rules.loans.lateInterestPerPeriod*periods):0;
         const due=Number(loan.remaining)+interest;
         if(repayment<=0||repayment>due)throw new Error("Nominal pembayaran melebihi tagihan atau tidak valid.");
