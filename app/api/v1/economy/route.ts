@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod } from "@/lib/economy/ledger";
+import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod, postConfiguredMoneyMovement, issueTeamLoan, repayTeamLoan } from "@/lib/economy/ledger";
 import { defaultEconomyRules, validateEconomyRules } from "@/lib/economy/policy.mjs";
 
 export const runtime = "nodejs";
@@ -53,6 +53,45 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     throw new AppError("INVALID_TOKEN_TYPE", "Token type must be DDP or TDP.", 400);
   }
   await requireOperator(principal);
+  if (action === "RULED_MOVEMENT") {
+    const result = await postConfiguredMoneyMovement({
+      sourceAccountId: readString(body.sourceAccountId, "sourceAccountId", { max: 64 }),
+      destinationAccountId: readString(body.destinationAccountId, "destinationAccountId", { max: 64 }),
+      amountMinor: Number(body.amountMinor),
+      category: readString(body.category, "category", { max: 48 }).toUpperCase(),
+      ruleGroup: readString(body.ruleGroup, "ruleGroup", { max: 48 }),
+      seasonId: readString(body.seasonId, "seasonId", { max: 64 }),
+      reason: readString(body.reason, "reason", { min: 8, max: 500 }),
+      actorId,
+      idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }),
+      referenceType: typeof body.referenceType === "string" ? body.referenceType.slice(0, 48) : undefined,
+      referenceId: typeof body.referenceId === "string" ? body.referenceId.slice(0, 64) : undefined,
+    });
+    return success(result, meta, result.replayed ? 200 : 201);
+  }
+  if (action === "ISSUE_LOAN") {
+    const result = await issueTeamLoan({
+      teamId: readString(body.teamId, "teamId", { max: 64 }),
+      teamAccountId: readString(body.teamAccountId, "teamAccountId", { max: 64 }),
+      amountMinor: Number(body.amountMinor),
+      seasonId: readString(body.seasonId, "seasonId", { max: 64 }),
+      actorId,
+      reason: readString(body.reason, "reason", { min: 8, max: 500 }),
+      idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }),
+    });
+    return success(result, meta, result.replayed ? 200 : 201);
+  }
+  if (action === "REPAY_LOAN") {
+    const result = await repayTeamLoan({
+      loanId: readString(body.loanId, "loanId", { max: 64 }),
+      teamAccountId: readString(body.teamAccountId, "teamAccountId", { max: 64 }),
+      amountMinor: Number(body.amountMinor),
+      actorId,
+      reason: readString(body.reason, "reason", { min: 8, max: 500 }),
+      idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }),
+    });
+    return success(result, meta, result.replayed ? 200 : 201);
+  }
   if (action === "CREATE_ACCOUNT") {
     const result = await createEconomyAccount({ ownerType: readString(body.ownerType, "ownerType", { max: 16 }).toUpperCase(), ownerId: readString(body.ownerId, "ownerId", { max: 64 }), currency: "CP", actorId });
     return success(result, meta, result.created ? 201 : 200);
