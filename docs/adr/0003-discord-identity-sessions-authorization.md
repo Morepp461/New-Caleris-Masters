@@ -22,7 +22,7 @@ The product source requires Discord OAuth, a distinct permanent player/member id
 - A successful Discord OAuth response may authenticate only when a matching, pre-provisioned `auth_accounts` record exists and its `player_id` resolves to an active player.
 - OAuth login must never create a player, member ID, team, role assignment, or game balance.
 - Unlinked Discord identities receive a neutral account-not-provisioned response. No automatic linking by username, display name, or email is allowed.
-- The unique provider identity index remains the concurrency guard against duplicate Discord links.
+- The unique provider identity index remains the concurrency guard against duplicate Discord links. A second unique partial index on `{ provider, player_id }` for Discord mappings prevents one player from being linked to multiple Discord accounts.
 
 ### 2. Session document extension
 
