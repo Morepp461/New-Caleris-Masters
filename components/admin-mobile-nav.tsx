@@ -1,9 +1,0 @@
-"use client";
-import {useState} from "react";
-import Link from "next/link";
-import {usePathname} from "next/navigation";
-import {Menu,X,ArrowUpRight} from "lucide-react";
-import {ADMIN_SHEETS} from "@/lib/admin-sheets";
-const groups=["GENERAL","MASTER DATA","ECONOMY","COMPETITION","REPORTS","HISTORY","SETTINGS"];
-const labels:Record<string,string>={"GENERAL":"Overview & Operasional","MASTER DATA":"Master Data","ECONOMY":"Ekonomi & Keuangan","COMPETITION":"Kompetisi","REPORTS":"Laporan & Analitik","HISTORY":"Arsip & Riwayat","SETTINGS":"Konfigurasi"};
-export function AdminMobileNav(){const[open,setOpen]=useState(false);const path=usePathname();return <><button className="admin-mobile-menu" aria-label="Buka navigasi" aria-expanded={open} onClick={()=>setOpen(true)}><Menu size={19}/></button>{open&&<div className="admin-mobile-overlay"><button className="admin-mobile-scrim" aria-label="Tutup navigasi" onClick={()=>setOpen(false)}/><aside className="admin-mobile-drawer"><div className="admin-mobile-drawer-head"><div><b>CALERIS MASTERS</b><small>ADMIN CONTROL ROOM</small></div><button onClick={()=>setOpen(false)} aria-label="Tutup"><X size={19}/></button></div><nav>{groups.map(group=>{const items=ADMIN_SHEETS.filter(s=>s.group===group);return items.length?<section key={group}><div className="admin-mobile-group">{labels[group]}</div>{items.map(s=><Link key={s.key} href={"/admin/"+s.slug} onClick={()=>setOpen(false)} className={path==="/admin/"+s.slug?"active":""}><span>{s.name}<small>{s.description}</small></span><ArrowUpRight size={15}/></Link>)}</section>:null})}</nav><Link className="admin-mobile-home" href="/" onClick={()=>setOpen(false)}>Dashboard Admin</Link></aside></div>}</>}

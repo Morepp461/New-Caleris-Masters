@@ -1,9 +1,11 @@
 node_modules
 .next
 out
-.env
-.env.local
-.env.*.local
+build
+dist
+coverage
+.env*
+!.env.example
 .vercel
-*.tsbuildinfo
 .DS_Store
+*.log
