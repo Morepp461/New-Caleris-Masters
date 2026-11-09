@@ -12,7 +12,7 @@ This checklist follows the Phase 01 scope and G1 gate in `CALERIS MASTERS Master
 | Index plan | `scripts/db/collections.mjs`; Data Dictionary §14 | Implemented: 44 index definitions, including unique active team membership per player and unique active team contract per driver |
 | Critical invariants | `phase-01-architecture.md`, `scripts/db/invariants.mjs` | Documented and tested at database-foundation level; transaction/service enforcement is Phase 02+ |
 | Transaction boundaries | `phase-01-architecture.md`; Data Dictionary §15 | Documented; transaction helper implementation is Phase 02 |
-| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Partial: source-derived BSON type/required-field validators now cover 58 of 63 collections; five remain identifier-only because the source dictionary has no field table |
+| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Implemented: source-derived BSON type/required-field validators cover 58 collections; five source-undocumented collections still enforce UUID and common timestamp fields without invented domain fields |
 | Migration strategy | Versioned checksum migration; guarded Development workflow | Pending: migration workflow must complete successfully against Development |
 | Development initial state | Development database has no domain documents | Pending post-migration verification |
 | Unique ID / referential integrity tests | `tests/database-foundation.test.mjs` | Implemented: reusable referential integrity assertions and automated tests |
