@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant } from "@/lib/progression/policy.mjs";
+import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow } from "@/lib/progression/policy.mjs";
 import { recordXpEvent } from "@/lib/progression/xp-service";
 
 export const runtime="nodejs";
@@ -80,9 +80,28 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
    const owner=await db.collection<Doc>("players").findOne({_id:team.owner_player_id,account_status:"ACTIVE",active_role:"TEAM_OWNER"});
    if(!owner||!quest.role_eligibility.includes("TEAM_OWNER"))throw fail("QUEST_INELIGIBLE","Team Owner role is not eligible for this quest.");
   }
-  const stamp=now(),expiresAt=quest.expiry_seconds?new Date(stamp.getTime()+Number(quest.expiry_seconds)*1000):null;
+  const stamp=now();
+  let recurrenceKey=typeof body.recurrenceKey==="string"?body.recurrenceKey:null;
+  if(quest.recurrence==="DAILY"||quest.recurrence==="WEEKLY"){
+   const window=getUtcRecurrenceWindow(stamp,String(quest.recurrence));
+   recurrenceKey=String(quest.recurrence)+":"+window;
+  }else if(quest.recurrence==="PER_SEASON"){
+   const activeSeason=await db.collection<Doc>("seasons").findOne({status:"ACTIVE"},{sort:{season_number:-1}});
+   if(!activeSeason)throw fail("ACTIVE_SEASON_REQUIRED","A season must be active for a per-season quest.");
+   recurrenceKey="SEASON:"+String(activeSeason._id);
+  }else if(quest.recurrence==="PER_EVENT"&&!recurrenceKey){
+   throw new AppError("EVENT_REFERENCE_REQUIRED","A recurrence key is required for event-scoped quests.",400);
+  }
+  if(recurrenceKey&&await db.collection<Doc>("quest_assignments").findOne({quest_id:questId,target_type:targetType,target_id:targetId,recurrence_key:recurrenceKey}))throw fail("RECURRENCE_ALREADY_ASSIGNED","This quest cycle has already been assigned.");
+  const previousAssignment=await db.collection<Doc>("quest_assignments").find({quest_id:questId,target_type:targetType,target_id:targetId,status:"CLAIMED"}).sort({assigned_at:-1}).limit(1).next();
+  if(!quest.repeatable&&previousAssignment)throw fail("QUEST_ALREADY_COMPLETED","This non-repeatable quest was already completed.");
+  if(previousAssignment&&Number(quest.cooldown_seconds)>0){
+   const previousClaim=await db.collection<Doc>("quest_claims").findOne({assignment_id:previousAssignment._id});
+   if(previousClaim&&isWithinCooldown(previousClaim.claimed_at,Number(quest.cooldown_seconds),stamp))throw fail("QUEST_COOLDOWN_ACTIVE","Quest cooldown has not elapsed.");
+  }
+  const expiresAt=quest.expiry_seconds?new Date(stamp.getTime()+Number(quest.expiry_seconds)*1000):null;
   const id=randomUUID();
-  await db.collection<Doc>("quest_assignments").insertOne({_id:id,quest_id:questId,target_type:targetType,target_id:targetId,assigned_at:stamp,expires_at:expiresAt,status:"ASSIGNED",recurrence_key:body.recurrenceKey?String(body.recurrenceKey):null,created_at:stamp,updated_at:stamp});
+  await db.collection<Doc>("quest_assignments").insertOne({_id:id,quest_id:questId,target_type:targetType,target_id:targetId,assigned_at:stamp,expires_at:expiresAt,status:"ASSIGNED",recurrence_key:recurrenceKey,created_at:stamp,updated_at:stamp});
   await db.collection<Doc>("quest_progress").insertOne({_id:randomUUID(),assignment_id:id,current_progress:{},completion_status:"IN_PROGRESS",evidence:[],evidence_verified:false,created_at:stamp,updated_at:stamp});
   await audit(db,actorId,"QUEST_ASSIGNED",id,{questId,targetType,targetId});
   return success({assignmentId:id,status:"ASSIGNED",expiresAt},meta,201);
@@ -148,7 +167,25 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   const decision=canClaimAssignment({status:String(assignment.status),expiresAt:assignment.expires_at??null,evidenceRequired:Boolean(quest.evidence_required),evidenceVerified:Boolean(progress.evidence_verified)});
   if(!decision.ok)throw fail(decision.reason??"CLAIM_BLOCKED","Quest reward cannot be claimed.");
   const rewards=normalizeRewardGrant(quest.rewards?.items??[]);
-  for(const reward of rewards){const cap=Number(quest.reward_caps?.[reward.type]??0);if(cap>0&&reward.amount>cap)throw fail("REWARD_CAP_EXCEEDED","Configured reward cap would be exceeded.");}
+  for(const reward of rewards){
+   const cap=Number(quest.reward_caps?.[reward.type]??0);
+   if(cap>0&&reward.amount>cap)throw fail("REWARD_CAP_EXCEEDED","Configured per-claim reward cap would be exceeded.");
+   const dailyCap=Number(quest.reward_caps?.["DAILY_"+reward.type]??0);
+   if(dailyCap>0){
+    const dayStart=new Date(Date.UTC(now().getUTCFullYear(),now().getUTCMonth(),now().getUTCDate()));
+    const totals=await db.collection<Doc>("quest_claims").aggregate([{$match:{claimed_by:actorId,claimed_at:{$gte:dayStart}}},{$unwind:"$rewards_granted"},{$match:{"rewards_granted.type":reward.type}},{$group:{_id:null,total:{$sum:"$rewards_granted.amount"}}}]).toArray();
+    if(Number(totals[0]?.total??0)+reward.amount>dailyCap)throw fail("DAILY_REWARD_CAP_REACHED","Configured daily reward cap would be exceeded.");
+   }
+   const seasonCap=Number(quest.reward_caps?.["SEASON_"+reward.type]??0);
+   if(seasonCap>0){
+    const activeSeason=await db.collection<Doc>("seasons").findOne({status:"ACTIVE"},{sort:{season_number:-1}});
+    if(activeSeason){
+     const seasonStart=activeSeason.start_date?new Date(activeSeason.start_date):new Date(0);
+     const totals=await db.collection<Doc>("quest_claims").aggregate([{$match:{claimed_by:actorId,claimed_at:{$gte:seasonStart}}},{$unwind:"$rewards_granted"},{$match:{"rewards_granted.type":reward.type}},{$group:{_id:null,total:{$sum:"$rewards_granted.amount"}}}]).toArray();
+     if(Number(totals[0]?.total??0)+reward.amount>seasonCap)throw fail("SEASON_REWARD_CAP_REACHED","Configured season reward cap would be exceeded.");
+    }
+   }
+  }
   const eventId="quest-claim:"+assignmentId,stamp=now(),client=await getMongoClient(),session=client.startSession();
   let granted:any[]=[];
   try{
