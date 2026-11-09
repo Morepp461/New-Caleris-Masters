@@ -1,4 +1,5 @@
-import { createHash, randomBytes, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
+import { createOpaqueToken, hashOpaqueToken } from "./crypto.mjs";
 import type { NextRequest, NextResponse } from "next/server";
 import { getMongoDatabase } from "@/lib/db/mongodb";
 
@@ -17,7 +18,6 @@ export type SessionPrincipal = {
   sessionId: string;
 };
 
-const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 
 export function setSessionCookie(response: NextResponse, token: string) {
   response.cookies.set(COOKIE_NAME, token, {
@@ -46,7 +46,7 @@ export async function createPlayerSession(input: {
   request: NextRequest;
 }) {
   const db = await getMongoDatabase();
-  const token = randomBytes(32).toString("base64url");
+  const token = createOpaqueToken();
   const now = new Date();
   const sessionId = randomUUID();
   await db.collection("player_sessions").insertOne({
@@ -55,7 +55,7 @@ export async function createPlayerSession(input: {
     auth_account_id: input.authAccountId,
     provider: "discord",
     provider_user_id: input.discordUserId,
-    session_token_hash: digest(token),
+    session_token_hash: hashOpaqueToken(token),
     status: "ACTIVE",
     issued_at: now,
     expires_at: new Date(now.getTime() + SESSION_SECONDS * 1000),
@@ -75,7 +75,7 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
   const db = await getMongoDatabase();
   const now = new Date();
   const session = await db.collection("player_sessions").findOne({
-    session_token_hash: digest(token),
+    session_token_hash: hashOpaqueToken(token),
     status: "ACTIVE",
     expires_at: { $gt: now },
   });
