@@ -7,6 +7,7 @@ const definition={indexes:[
 ["quests",{name:1,version:1},{unique:true,name:"uq_quests_name_version"}],
 ["quest_assignments",{target_type:1,target_id:1,status:1,assigned_at:-1},{name:"ix_quest_assignments_target_status_date"}],
 ["quest_assignments",{quest_id:1,target_type:1,target_id:1,assigned_at:-1},{name:"ix_quest_assignments_quest_target_date"}],
+["quest_assignments",{quest_id:1,target_type:1,target_id:1,recurrence_key:1},{unique:true,partialFilterExpression:{recurrence_key:{$type:"string"}},name:"uq_quest_assignment_recurrence"}],
 ["quest_progress",{assignment_id:1},{unique:true,name:"uq_quest_progress_assignment"}],
 ["quest_claims",{assignment_id:1},{unique:true,name:"uq_quest_claims_assignment"}],
 ["quest_claims",{claimed_by:1,claimed_at:-1},{name:"ix_quest_claims_player_date"}],
