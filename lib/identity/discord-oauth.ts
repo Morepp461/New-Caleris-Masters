@@ -28,7 +28,7 @@ export function buildDiscordAuthorizationUrl(state: string) {
   return url;
 }
 
-type DiscordProfile = { id: string; username: string; avatar: string | null; global_name?: string | null; email?: string; verified?: boolean };
+export type DiscordProfile = { id: string; username: string; avatar: string | null; global_name?: string | null; email?: string; verified?: boolean };
 
 export async function exchangeDiscordCode(code: string): Promise<DiscordProfile> {
   const config = getDiscordOAuthConfig();
