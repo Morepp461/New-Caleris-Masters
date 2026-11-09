@@ -181,8 +181,8 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const calendarId = readString(body.calendarId, "calendarId", { max: 64 });
     const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: "DRAFT" });
     if (!calendar) throw fail("CALENDAR_NOT_DRAFT", "Only a draft calendar can be activated.");
-    const [season, ruleset] = await Promise.all([seasons.findOne({ _id: calendar.season_id, status: { $in: ["PLANNED", "REGISTRATION"] } }), db.collection<Doc>("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" })]);
-    if (!season || !ruleset) throw fail("CALENDAR_SETUP_INCOMPLETE", "Calendar requires an open season and locked ruleset.");
+    const [season, ruleset, eventCount] = await Promise.all([seasons.findOne({ _id: calendar.season_id, status: { $in: ["PLANNED", "REGISTRATION"] } }), db.collection<Doc>("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" }), db.collection<Doc>("race_events").countDocuments({ calendar_id: calendarId })]);
+    if (!season || !ruleset || eventCount !== Number(calendar.total_rounds)) throw fail("CALENDAR_SETUP_INCOMPLETE", "Calendar requires an open season, locked ruleset and one scheduled event for every round.");
     await db.collection<Doc>("race_calendars").updateOne({ _id: calendarId, status: "DRAFT" }, { $set: { status: "ACTIVE", activated_at: now(), updated_at: now() } });
     await audit(db, actorId, "RACE_CALENDAR_ACTIVATED", "RACE_CALENDAR", calendarId, { status: "DRAFT" }, { status: "ACTIVE" });
     return success({ calendarId, status: "ACTIVE" }, meta);
