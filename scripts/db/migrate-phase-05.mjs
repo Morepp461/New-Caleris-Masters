@@ -12,6 +12,8 @@ const definition = {
     ["team_transfer_requests", { team_id: 1, status: 1 }],
     ["team_transfer_requests", { seller_player_id: 1, status: 1 }],
     ["team_transfer_requests", { buyer_player_id: 1, status: 1 }],
+    ["team_transfer_requests", { team_id: 1 }],
+    ["team_contracts", { driver_player_id: 1 }],
     ["team_ownership_history", { team_id: 1, transferred_at: 1 }],
   ],
   driverProfileExtension: ["license_tier"],
@@ -95,7 +97,16 @@ try {
       await ensureCollection(db, names, name, validator);
     }
     for (const [collection, keys] of definition.indexes) {
-      await db.collection(collection).createIndex(keys, { name: "ix_" + collection + "_" + Object.keys(keys).join("_") });
+      const openTransferIndex = collection === "team_transfer_requests" && Object.keys(keys).length === 1 && keys.team_id === 1;
+      const openContractIndex = collection === "team_contracts";
+      const unique = openTransferIndex || openContractIndex;
+      const partialFilterExpression = openTransferIndex
+        ? { status: { $in: ["NEGOTIATING", "SUBMITTED"] } }
+        : openContractIndex ? { status: { $in: ["OFFERED", "ACTIVE"] } } : undefined;
+      await db.collection(collection).createIndex(keys, {
+        name: openTransferIndex ? "uq_team_transfer_open_team" : openContractIndex ? "uq_team_contracts_open_driver" : "ix_" + collection + "_" + Object.keys(keys).join("_"),
+        ...(unique ? { unique: true, partialFilterExpression } : {}),
+      });
     }
 
     const now = new Date();
