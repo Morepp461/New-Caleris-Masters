@@ -6,7 +6,6 @@ import { Activity, ArrowUpRight, Search, ShieldCheck, type LucideIcon } from "lu
 import * as Icons from "lucide-react";
 import { ADMIN_SHEETS, type AdminSheet } from "@/lib/admin-sheets";
 import { SignOutButton } from "@/components/sign-out-button";
-import { AdminMobileNav } from "@/components/admin-mobile-nav";
 import { AdminRacingBackground } from "@/components/admin-racing-background";
 
 const iconFor=(name:string):LucideIcon=>{
@@ -26,10 +25,10 @@ export function AdminDashboard({counts={},displayName="Administrator"}:{counts?:
    <Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link>
    <div className="admin-sidebar-label">WORKSPACE</div>
    <div className="admin-side-active"><span className="side-active-icon"><ShieldCheck size={17}/></span><span><b>Dashboard Admin</b><small>Master control center</small></span></div>
-   <nav className="admin-desktop-nav">{groups.map(group=><section key={group}><div>{groupLabel[group]}</div>{ADMIN_SHEETS.filter(sheet=>sheet.group===group).map(sheet=><Link key={sheet.key} href={`/admin/${sheet.slug}`}><span>{sheet.name}</span><small>{counts[sheet.key]??0}</small></Link>)}</section>)}</nav><div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">{displayName.slice(0,1).toUpperCase()}</span><span><b>{displayName}</b><small>System Administrator</small></span><SignOutButton/></div><div className="admin-version">CALERIS MASTERS · ADMIN</div></div>
+   <div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">{displayName.slice(0,1).toUpperCase()}</span><span><b>{displayName}</b><small>System Administrator</small></span><SignOutButton/></div><div className="admin-version">CALERIS MASTERS · ADMIN</div></div>
   </aside>
   <section className="admin-main">
-   <header className="admin-topbar"><AdminMobileNav/><div className="admin-mobile-brand">CALERIS <span>MASTERS</span></div><div className="admin-topbar-right"><span className="admin-secure"><i/> ADMIN SESSION</span><span className="admin-top-avatar">{displayName.slice(0,1).toUpperCase()}</span></div></header>
+   <header className="admin-topbar"><div className="admin-mobile-brand">CALERIS <span>MASTERS</span></div><div className="admin-topbar-right"><span className="admin-secure"><i/> ADMIN SESSION</span><span className="admin-top-avatar">{displayName.slice(0,1).toUpperCase()}</span></div></header>
    <div className="admin-content">
     <section className="admin-hero"><div><div className="admin-eyebrow">CALERIS MASTERS / CONTROL CENTER</div><h1>DASHBOARD <em>ADMIN</em></h1><p>Seluruh workbook operasional dalam satu pusat kendali. Pilih sheet untuk membuka halaman pengelolaannya.</p></div><div className="admin-hero-mark">CM<span>01</span></div></section>
     <div className="admin-overview-strip"><div><span className="overview-label">WORKBOOK MODULES</span><b>{ADMIN_SHEETS.length.toString().padStart(2,"0")}</b><small>Halaman sheet terdaftar</small></div><div><span className="overview-label">ADMIN RECORDS</span><b>{activeCount.toLocaleString("id-ID")}</b><small>Baris data pada workspace</small></div><div><span className="overview-label">ACCESS LEVEL</span><b>ADMIN</b><small>Restricted workspace</small></div></div>
