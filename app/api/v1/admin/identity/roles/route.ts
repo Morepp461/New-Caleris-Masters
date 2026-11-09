@@ -8,6 +8,7 @@ import { apiHandler } from "@/lib/server/api-handler";
 import { success } from "@/lib/server/response";
 import { readString, requireJsonObject } from "@/lib/server/validation";
 import { AppError } from "@/lib/server/errors";
+import { assertSameOrigin } from "@/lib/server/csrf";
 
 const ALLOWED_ROLES = new Set(["DRIVER", "PRINCIPAL", "OWNER", "AGENT", "JOURNALIST", "FIA"]);
 
@@ -15,6 +16,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
+  assertSameOrigin(request);
   const principal = await getSessionPrincipal(request);
   await requireOperator(principal);
   const body = requireJsonObject(await request.json());
