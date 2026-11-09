@@ -113,7 +113,7 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
       if (existing.category !== input.tokenType + "_PURCHASE" || existing.source_account_id !== input.accountId || existing.destination_account_id !== rule.system_account_id || Number(existing.amount_minor) !== cost) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key belongs to a different economy transaction.", 409);
       return { transactionId: existing._id, replayed: true };
     }
-    const result = await postMoneyTransferInSession(db, session, { sourceAccountId: input.accountId, destinationAccountId: rule.system_account_id, amountMinor: cost, category: input.tokenType + "_PURCHASE", reason: input.tokenType + " purchase under approved economy ruleset " + ruleset.version + ".", actorId: input.actorId, idempotencyKey: key, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
+    const result = await postMoneyTransferInSession(db, session, { sourceAccountId: input.accountId, destinationAccountId: rule.system_account_id, amountMinor: cost, category: input.tokenType + "_PURCHASE", reason: input.tokenType + " purchase under approved economy ruleset " + ruleset.version + ".", actorId: input.actorId, actorType: "PLAYER", idempotencyKey: key, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
     const token = await grantTokensInSession(db, session, { ownerType: input.ownerType, ownerId: input.ownerId, tokenType: input.tokenType, amount, actorId: input.actorId, idempotencyKey: key + ":TOKEN", sourceId: result.transactionId, rulesetVersion: ruleset.version });
     return { transactionId: result.transactionId, tokenTransactionId: token.transactionId, tokenBalance: token.balance, costMinor: cost, replayed: false };
   });
