@@ -29,8 +29,11 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
     db.collection<Doc>("race_calendars").find({}).sort({ created_at: -1 }).limit(100).toArray(),
     db.collection<Doc>("race_events").find({}).sort({ scheduled_start_at: 1 }).limit(200).toArray(),
     db.collection<Doc>("championships").find({}).sort({ season_id: 1, division_id: 1 }).toArray(),
+    db.collection<Doc>("season_rulesets").find({}).sort({ season_id: 1, division_id: 1, version: -1 }).limit(200).toArray(),
+    db.collection<Doc>("circuits").find({ status: "ACTIVE" }).sort({ name: 1 }).toArray(),
+    db.collection<Doc>("race_entries").find({}).sort({ created_at: -1 }).limit(200).toArray(),
   ]);
-  return success({ divisions, seasons, calendars, events, championships }, meta);
+  return success({ divisions, seasons, calendars, events, championships, rulesets, circuits, entries }, meta);
 });
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   assertSameOrigin(request);
