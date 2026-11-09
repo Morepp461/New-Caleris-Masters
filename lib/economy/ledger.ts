@@ -8,7 +8,7 @@ import { assertBalancedPostings, canPostMoneyTransfer, toMinorUnits, validateIde
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc = { _id: string; [key: string]: any };
 type EconomyRules = { token_purchase_rules: { enabled: boolean; minimum_purchase?: number; ddp_price_minor?: number; tdp_price_minor?: number; system_account_id?: string }; [key: string]: unknown };
-type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string; rulesetVersion?: number };
+type TransferInput = { sourceAccountId: string; destinationAccountId: string; amountMinor: number; category: string; reason: string; actorId: string; idempotencyKey: string; referenceType?: string; referenceId?: string; rulesetId?: string; rulesetVersion?: number; actorType?: "PLAYER" | "OPERATOR" };
 const now = () => new Date();
 const asLong = (value: number | string | bigint) => Long.fromString(String(value));
 async function audit(db: Db, session: ClientSession, actorId: string, action: string, targetType: string, targetId: string, reason: string, after?: unknown) {
@@ -126,7 +126,7 @@ async function postMoneyTransferInSession(db: Db, session: ClientSession, input:
     { _id: randomUUID(), transaction_id: id, account_id: source!._id, direction: "CREDIT", amount_minor: asLong(amount), currency: source!.currency, balance_after_minor: asLong(after), created_at: stamp, updated_at: stamp },
     { _id: randomUUID(), transaction_id: id, account_id: destination!._id, direction: "DEBIT", amount_minor: asLong(amount), currency: destination!.currency, balance_after_minor: asLong(destinationAfter), created_at: stamp, updated_at: stamp },
   ], { session });
-  await audit(db, session, input.actorId, "ECONOMY_TRANSFER_POSTED", "LEDGER_TRANSACTION", id, input.reason, { amountMinor: amount, sourceAccountId: source!._id, destinationAccountId: destination!._id });
+  await audit(db, session, input.actorId, "ECONOMY_TRANSFER_POSTED", "LEDGER_TRANSACTION", id, input.reason, { amountMinor: amount, sourceAccountId: source!._id, destinationAccountId: destination!._id }, input.actorType ?? "OPERATOR");
   return { transactionId: id };
 }
 export async function closeEconomyPeriod(input: { periodId: string; actorId: string; reason: string }) {
@@ -234,4 +234,35 @@ export async function repayTeamLoan(input: { loanId: string; teamAccountId: stri
     await audit(db, session, input.actorId, "TEAM_LOAN_REPAID", "LOAN", loan._id, reason, { transactionId: transfer.transactionId, amountMinor: amount, principalRemainingMinor: principalAfter.toString(), interestRemainingMinor: interestAfter.toString() });
     return { transactionId: transfer.transactionId, loanId: loan._id, status: principalAfter === 0n && interestAfter === 0n ? "PAID" : "ACTIVE", principalRemainingMinor: principalAfter.toString(), interestRemainingMinor: interestAfter.toString(), replayed: false };
   });
+}
+
+export async function settleQuestRewardInSession(db: Db, session: ClientSession, input: { seasonId: string; assignmentId: string; rewardIndex: number; rewardType: "CP" | "DDP" | "TDP"; amount: number; targetType: "PLAYER" | "TEAM"; targetId: string; actorId: string; eventId: string }) {
+  const amount = toMinorUnits(input.amount, "questRewardAmount");
+  const ruleset = await db.collection<Doc>("economy_rulesets").findOne({ season_id: input.seasonId, status: "ACTIVE" }, { sort: { version: -1 }, session });
+  if (!ruleset) return { settled: false, reason: "NO_ACTIVE_ECONOMY_RULESET" };
+  const validation = validateEconomyRules(ruleset) as { ok: boolean; value?: Record<string, { enabled: boolean; system_account_id?: string }>; reason?: string };
+  if (!validation.ok || !validation.value) return { settled: false, reason: "INVALID_ACTIVE_RULESET" };
+  const key = "quest:" + input.assignmentId + ":reward:" + input.rewardIndex + ":" + input.rewardType;
+  const reason = "Quest reward settlement for assignment " + input.assignmentId + ".";
+  if (input.rewardType === "CP") {
+    const rule = validation.value.quest_reward_rules;
+    if (!rule?.enabled || !rule.system_account_id) return { settled: false, reason: "QUEST_REWARD_RULE_DISABLED" };
+    const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
+    if (existing) return { settled: true, transactionId: existing._id, replayed: true };
+    const recipient = await db.collection<Doc>("economy_accounts").findOneAndUpdate({ owner_type: input.targetType, owner_id: input.targetId, currency: "CP" }, { $setOnInsert: { _id: randomUUID(), owner_type: input.targetType, owner_id: input.targetId, currency: "CP", available_balance_minor: Long.ZERO, reserved_balance_minor: Long.ZERO, version: Long.fromInt(1), status: "ACTIVE", created_at: now(), updated_at: now() } }, { upsert: true, returnDocument: "after", session });
+    const posted = await postMoneyTransferInSession(db, session, { sourceAccountId: rule.system_account_id, destinationAccountId: recipient!._id, amountMinor: amount, category: "QUEST_REWARD", reason, actorId: input.actorId, actorType: "PLAYER", idempotencyKey: key, referenceType: "QUEST_CLAIM", referenceId: input.assignmentId, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
+    return { settled: true, transactionId: posted.transactionId, replayed: false };
+  }
+  const rule = validation.value.development_reward_rules;
+  if (!rule?.enabled) return { settled: false, reason: "DEVELOPMENT_REWARD_RULE_DISABLED" };
+  const ownerType = input.rewardType === "DDP" ? "PLAYER" : "TEAM";
+  if ((input.rewardType === "DDP" && input.targetType !== "PLAYER") || (input.rewardType === "TDP" && input.targetType !== "TEAM")) return { settled: false, reason: "TOKEN_REWARD_TARGET_MISMATCH" };
+  const prior = await db.collection<Doc>("development_transactions").findOne({ idempotency_key: key }, { session });
+  if (prior) return { settled: true, transactionId: prior._id, replayed: true };
+  const wallet = await db.collection<Doc>("development_wallets").findOneAndUpdate({ owner_type: ownerType, owner_id: input.targetId, token_type: input.rewardType }, { $setOnInsert: { _id: randomUUID(), owner_type: ownerType, owner_id: input.targetId, token_type: input.rewardType, balance: Long.ZERO, version: Long.fromInt(0), created_at: now(), updated_at: now() } }, { upsert: true, returnDocument: "after", session });
+  const before = BigInt(String(wallet!.balance ?? 0)), after = before + BigInt(amount), stamp = now(), id = randomUUID();
+  await db.collection<Doc>("development_wallets").updateOne({ _id: wallet!._id, version: wallet!.version }, { $inc: { balance: asLong(amount), version: Long.fromInt(1) }, $set: { updated_at: stamp } }, { session });
+  await db.collection<Doc>("development_transactions").insertOne({ _id: id, wallet_id: wallet!._id, owner_type: ownerType, owner_id: input.targetId, token_type: input.rewardType, transaction_type: "GRANT", source_type: "QUEST_REWARD", source_id: input.assignmentId, event_id: input.eventId, idempotency_key: key, actor_id: input.actorId, reason, amount: asLong(amount), balance_before: asLong(before), balance_after: asLong(after), ruleset_version: ruleset.version, created_at: stamp, updated_at: stamp }, { session });
+  await audit(db, session, input.actorId, "QUEST_DEVELOPMENT_REWARD_SETTLED", "DEVELOPMENT_WALLET", wallet!._id, reason, { tokenType: input.rewardType, amount, assignmentId: input.assignmentId }, "PLAYER");
+  return { settled: true, transactionId: id, balance: after.toString(), replayed: false };
 }
