@@ -2,34 +2,17 @@
   "name": "caleris-masters",
   "version": "0.1.0",
   "private": true,
-  "engines": {
-    "node": "24.x"
-  },
+  "engines": { "node": "24.x" },
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint .",
-    "typecheck": "tsc --noEmit",
-    "test": "node --test tests/*.test.mjs",
+    "dev": "next dev", "build": "next build", "start": "next start",
+    "lint": "eslint .", "typecheck": "tsc --noEmit", "test": "node --test tests/*.test.mjs",
     "db:migrate": "node scripts/db/migrate.mjs",
     "db:migrate:phase-03": "node scripts/db/migrate-phase-03.mjs",
     "db:verify-query-plans": "node scripts/db/verify-query-plans.mjs",
     "db:migrate:phase-04": "node scripts/db/migrate-phase-04.mjs",
-    "db:migrate:phase-05": "node scripts/db/migrate-phase-05.mjs"
+    "db:migrate:phase-05": "node scripts/db/migrate-phase-05.mjs",
+    "db:migrate:phase-06": "node scripts/db/migrate-phase-06.mjs"
   },
-  "dependencies": {
-    "next": "16.4.3",
-    "react": "19.2.9",
-    "react-dom": "19.2.9",
-    "mongodb": "7.8.0"
-  },
-  "devDependencies": {
-    "@types/node": "^22",
-    "@types/react": "^19",
-    "@types/react-dom": "^19",
-    "eslint": "^9",
-    "eslint-config-next": "16.4.3",
-    "typescript": "^5.9"
-  }
+  "dependencies": { "next": "16.4.3", "react": "19.2.9", "react-dom": "19.2.9", "mongodb": "7.8.0" },
+  "devDependencies": { "@types/node": "^22", "@types/react": "^19", "@types/react-dom": "^19", "eslint": "^9", "eslint-config-next": "16.4.3", "typescript": "^5.9" }
 }
