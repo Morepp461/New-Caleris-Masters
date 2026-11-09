@@ -23,6 +23,8 @@ export const GET=apiHandler(async(request:NextRequest,_context,meta)=>{
  const principal=await getSessionPrincipal(request);
  if(!principal)throw new AppError("UNAUTHENTICATED","Authentication is required.",401);
  const db=await getMongoDatabase();
+ const expiryTime=now();
+ await db.collection<Doc>("quest_assignments").updateMany({status:{$in:["ASSIGNED","IN_PROGRESS","COMPLETED","REVIEW_REQUIRED"]},expires_at:{$type:"date",$lte:expiryTime}},{$set:{status:"EXPIRED",updated_at:expiryTime}});
  if(principal.isOperator){
   const [quests,assignments,levels,progress]=await Promise.all([
    db.collection<Doc>("quests").find({}).sort({created_at:-1}).limit(200).toArray(),
