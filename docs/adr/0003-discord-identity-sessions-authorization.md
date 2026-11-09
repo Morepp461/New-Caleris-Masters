@@ -22,7 +22,7 @@ The product source requires Discord OAuth, a distinct permanent player/member id
 - A successful Discord OAuth response may authenticate only when a matching, pre-provisioned `auth_accounts` record exists and its `player_id` resolves to an active player.
 - OAuth login must never create a player, member ID, team, role assignment, or game balance.
 - Unlinked Discord identities receive a neutral account-not-provisioned response. No automatic linking by username, display name, or email is allowed.
-- The unique provider identity index remains the concurrency guard against duplicate Discord links. A second unique partial index on `{ provider, player_id }` for Discord mappings prevents one player from being linked to multiple Discord accounts.
+- The unique provider identity index remains the concurrency guard against duplicate Discord links. A second unique partial index on `{ provider, player_id }` for Discord mappings in `PENDING` or `ACTIVE` state prevents one player from having multiple live Discord links while allowing a revoked link to be replaced.
 
 ### 2. Session document extension
 
@@ -73,7 +73,7 @@ Do not add a TTL index: expired/revoked records are retained for security review
 ### 5. Operator provisioning
 
 - Only an authenticated player whose persisted `is_operator` is true may provision or revoke a Discord identity link.
-- Provisioning links an existing player to an existing Discord user ID. It does not create a player or assign a role. Because the existing catalog requires `provider_email`, the pending mapping stores an empty string until the first verified OAuth callback fills the verified email and provider profile metadata.
+- Provisioning links an existing player to an existing Discord user ID. It does not create a player or assign a role. The mapping starts in `PENDING`; because the existing catalog requires `provider_email`, it stores an empty string until the first verified OAuth callback fills the verified email and provider profile metadata. A successful callback changes the mapping to `ACTIVE`; operator revocation changes it to `REVOKED`.
 - Discord identity must be obtained from a verified provider callback or entered through a controlled operator workflow. No client can self-assign `player_id`, role, or operator status.
 - The unique provider identity index and transaction boundary prevent duplicate account linking.
 - Every provisioning/revocation operation writes an `audit_logs` record in the same MongoDB transaction as the account change.
