@@ -19,8 +19,8 @@ async function balance(db: Awaited<ReturnType<typeof getDatabase>>, account: Acc
   if (account.type === "bank") {
     const bank = await db.collection("economy_accounts").findOne({ account_key: "vreeo-bank" }, { session });
     if (bank) return Number(bank.balance ?? 0);
-    const opening = 999999999;
-    await db.collection("economy_accounts").updateOne({account_key:"vreeo-bank"},{$setOnInsert:{balance:opening,created_at:new Date(),source:"backup-settings.vreeoBankSaldoAwal"}},{upsert:true,session});
+    const opening = season ? Number((await getRuleset(season)).bankOpeningBalance) : 999999999;
+    await db.collection("economy_accounts").updateOne({account_key:"vreeo-bank"},{$setOnInsert:{balance:opening,created_at:new Date(),source:season?"economy_rulesets.bankOpeningBalance":"backup-settings.vreeoBankSaldoAwal"}},{upsert:true,session});
     return opening;
   }
   const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": account.name };
