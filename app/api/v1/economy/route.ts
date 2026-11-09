@@ -39,8 +39,17 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   if (!principal) throw new AppError("UNAUTHENTICATED", "Authentication is required.", 401);
   const body = requireJsonObject(await request.json()), action = readString(body.action, "action", { max: 40 }).toUpperCase();
   const db = await getMongoDatabase(), actorId = principal.playerId;
-  if (action === "PURCHASE_DDP") {
-    return success(await purchaseDevelopmentTokens({ playerId: actorId, playerAccountId: readString(body.playerAccountId, "playerAccountId", { max: 64 }), amount: Number(body.amount), actorId, idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }), seasonId: readString(body.seasonId, "seasonId", { max: 64 }) }), meta, 201);
+  if (action === "PURCHASE_TOKENS") {
+    const tokenType = readString(body.tokenType, "tokenType", { max: 8 }).toUpperCase();
+    if (tokenType === "DDP") {
+      return success(await purchaseDevelopmentTokens({ ownerType: "PLAYER", ownerId: actorId, accountId: readString(body.accountId, "accountId", { max: 64 }), tokenType: "DDP", amount: Number(body.amount), actorId, idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }), seasonId: readString(body.seasonId, "seasonId", { max: 64 }) }), meta, 201);
+    }
+    if (tokenType === "TDP") {
+      const team = await db.collection<Doc>("teams").findOne({ owner_player_id: actorId, status: "ACTIVE" });
+      if (!team) throw new AppError("TEAM_OWNERSHIP_REQUIRED", "An active team owner is required to purchase TDP.", 403);
+      return success(await purchaseDevelopmentTokens({ ownerType: "TEAM", ownerId: team._id, accountId: readString(body.accountId, "accountId", { max: 64 }), tokenType: "TDP", amount: Number(body.amount), actorId, idempotencyKey: readString(body.idempotencyKey, "idempotencyKey", { min: 8, max: 160 }), seasonId: readString(body.seasonId, "seasonId", { max: 64 }) }), meta, 201);
+    }
+    throw new AppError("INVALID_TOKEN_TYPE", "Token type must be DDP or TDP.", 400);
   }
   await requireOperator(principal);
   if (action === "CREATE_ACCOUNT") {
