@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       points: body.points === undefined || body.points === "" ? undefined : Number(body.points),
       period: Number(body.period),
       season: Number(body.season),
-      date: body.date ? String(body.date) : undefined,
+      date: body.date ? String(body.date) : undefined,\n      referenceId: body.referenceId ? String(body.referenceId) : undefined,\n      metadata: body.metadata && typeof body.metadata === "object" ? body.metadata : {},
     }, admin.id);
     return NextResponse.json({ success: true, transaction: result }, { status: 201 });
   } catch (error) {
