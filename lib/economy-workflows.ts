@@ -170,6 +170,49 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await add(bank,"Keluar","Relief Fund",rules.teamAid.payout,"Bantuan akhir season");
         await add(t,"Masuk","Relief Fund",rules.teamAid.payout,"Bantuan akhir season");
         result={...result,team:t.name,balance:current,amount:rules.teamAid.payout};
+      } else if(action==="period_settlement"){
+        if(!rules.enabledWorkflows.wealthTax&&!rules.enabledWorkflows.inactivePenalties)throw new Error("Semua penilaian periode dinonaktifkan.");
+        const prior=await db.collection("economy_workflows").findOne({action:"period_settlement",season:input.season,period:input.period,status:"posted"},{session});
+        if(prior)throw new Error("Periode ini sudah pernah diselesaikan. Hindari pemotongan ganda.");
+        const memberRows=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const teamRows=await db.collection("admin_sheet_records").find({sheet_key:"data-tim"},{session}).toArray();
+        const assessed:Array<{name:string;tax:number;penalty:number;kind:string}>=[];
+        for(const m of memberRows){
+          const name=String(m.row_data?.c1??""),role=String(m.row_data?.c3??""),status=String(m.row_data?.c4??"");
+          if(!name||role!=="Driver")continue;
+          const a=driver(name),current=await balance(db,a,input.season,session);
+          const tax=rules.enabledWorkflows.wealthTax&&rules.wealthTax.enabled&&current>rules.wealthTax.individualThreshold?Math.round(current*rules.wealthTax.rate):0;
+          const penalty=rules.enabledWorkflows.inactivePenalties&&status.toLowerCase().includes("inactive")?Math.round(Math.max(0,current)*rules.inactive.driverBalanceCutRate):0;
+          if(tax){await add(a,"Keluar","Pajak Kekayaan",tax,`Pajak periode ${input.period}`);await add(bank,"Masuk","Pajak Kekayaan",tax,`Pajak individu ${name}`);}
+          if(penalty){await add(a,"Keluar","Denda Inactive Driver",penalty,"Sanksi inactive driver");await add(bank,"Masuk","Denda Inactive Driver",penalty,`Denda inactive ${name}`);}
+          assessed.push({name,tax,penalty,kind:"individual"});
+        }
+        for(const t of teamRows){
+          const name=String(t.row_data?.c0??""),status=String(t.row_data?.c5??"");
+          if(!name)continue;
+          const a=team(name),current=await balance(db,a,input.season,session);
+          const tax=rules.enabledWorkflows.wealthTax&&rules.wealthTax.enabled&&current>rules.wealthTax.teamThreshold?Math.round(current*rules.wealthTax.rate):0;
+          const penalty=rules.enabledWorkflows.inactivePenalties&&status.toLowerCase().includes("inactive")?rules.inactive.teamFine:0;
+          if(tax){await add(a,"Keluar","Pajak Kekayaan",tax,`Pajak periode ${input.period}`);await add(bank,"Masuk","Pajak Kekayaan",tax,`Pajak tim ${name}`);}
+          if(penalty){await add(a,"Keluar","Denda Inactive Tim",penalty,"Sanksi inactive tim");await add(bank,"Masuk","Denda Inactive Tim",penalty,`Denda inactive ${name}`);}
+          assessed.push({name,tax,penalty,kind:"team"});
+        }
+        result={...result,assessedCount:assessed.length,totalTax:assessed.reduce((s,x)=>s+x.tax,0),totalPenalty:assessed.reduce((s,x)=>s+x.penalty,0)};
+      } else if(action==="season_close"){
+        if(!rules.enabledWorkflows.seasonClose)throw new Error("Season closing dinonaktifkan.");
+        const existing=await db.collection("season_economy_snapshots").findOne({season:input.season},{session});
+        if(existing)throw new Error("Snapshot season sudah ada. Penutupan tidak dapat diulang.");
+        const memberRows=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const teamRows=await db.collection("admin_sheet_records").find({sheet_key:"data-tim"},{session}).toArray();
+        const balances:Array<{name:string;type:string;balance:number}>=[];
+        for(const m of memberRows){const name=String(m.row_data?.c1??""),role=String(m.row_data?.c3??"");if(name&&role==="Driver")balances.push({name,type:"individual",balance:await balance(db,driver(name),input.season,session)});}
+        for(const t of teamRows){const name=String(t.row_data?.c0??"");if(name)balances.push({name,type:"team",balance:await balance(db,team(name),input.season,session)});}
+        const debts=await db.collection("bank_loans").find({season:input.season,status:{$in:["active","overdue"]}},{session}).toArray();
+        const bankBalance=await balance(db,bank,input.season,session);
+        const totalCirculating=balances.reduce((s,x)=>s+x.balance,0);
+        await db.collection("season_economy_snapshots").insertOne({season:input.season,closed_at:new Date(),closed_by:adminId,member_count:memberRows.length,team_count:teamRows.length,total_circulating:totalCirculating,bank_balance:bankBalance,active_debt:debts.reduce((s,x)=>s+Number(x.remaining??0),0),balances,ruleset_snapshot:rules},{session});
+        await db.collection("economy_rulesets").updateOne({season:input.season},{$set:{status:"closed",closed_at:new Date(),closed_by:adminId}},{session});
+        result={...result,memberCount:memberRows.length,teamCount:teamRows.length,totalCirculating,bankBalance,activeDebt:debts.reduce((s,x)=>s+Number(x.remaining??0),0)};
       } else if(action==="manual_pair"){
         const fromType=input.fromType==="bank"?"bank":input.fromType==="team"?"team":"individual";
         const toType=input.toType==="bank"?"bank":input.toType==="team"?"team":"individual";
