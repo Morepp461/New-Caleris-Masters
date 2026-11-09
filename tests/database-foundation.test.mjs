@@ -49,14 +49,25 @@ test("race event has one active authoritative session", () => {
 test("UUID baseline validator enforces UUID v4 string identifiers", () => {
   assert.deepEqual(UUID_BASELINE_VALIDATOR.$jsonSchema.required, ["_id"]);
   assert.equal(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
-  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\[0-9a-f\]/);
+  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\\[0-9a-f\\]/);
 });
 
 test("natural-key collection is not incorrectly constrained to UUID", () => {
-  assert.deepEqual(COLLECTION_VALIDATORS.game_settings, NATURAL_KEY_BASELINE_VALIDATOR);
-  assert.equal(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
-  assert.equal(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, undefined);
+  const schema = COLLECTION_VALIDATORS.game_settings.$jsonSchema;
+  assert.equal(schema.properties._id.bsonType, "string");
+  assert.equal(schema.properties._id.pattern, undefined);
+  assert.equal(schema.properties._id.minLength, 1);
+  assert.ok(schema.required.includes("_id"));
+  assert.ok(schema.required.includes("created_at"));
+  assert.ok(schema.required.includes("updated_at"));
+  assert.equal(schema.properties.created_at.bsonType, "date");
+  assert.equal(schema.properties.updated_at.bsonType, "date");
   assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
+  assert.deepEqual(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id, {
+    bsonType: "string",
+    minLength: 1,
+    description: "Natural string key, as specified for game_settings._id.",
+  });
 });
 
 test("division names and codes are both unique", () => {
