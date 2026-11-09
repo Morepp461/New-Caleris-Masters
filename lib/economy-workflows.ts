@@ -88,12 +88,12 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(principal<=0||principal>rules.loans.maxPerRequest||due<=input.period)throw new Error("Nominal pinjaman atau jatuh tempo tidak valid.");
         await add(bank,"Keluar","Pencairan Pinjaman Bank",principal,`Pinjaman ${t.name}`);
         await add(t,"Masuk","Pencairan Pinjaman Bank",principal,"Pencairan Vreeo Bank");
-        await db.collection("bank_loans").insertOne({reference_id:refId,team:t.name,principal,remaining:principal,season:input.season,issued_period:input.period,due_period:due,paid_period:null,status:"active",created_at:new Date(),created_by:adminId},{session});
+        await db.collection("bank_loans").insertOne({reference_id:refId,team:t.name,principal,remaining:principal,season:input.season,issued_period:input.period,due_period:due,periods_per_season:rules.periodsPerSeason,paid_period:null,status:"active",created_at:new Date(),created_by:adminId},{session});
         result={...result,team:t.name,principal,duePeriod:due};
       } else if(action==="loan_repay"){
         const loanId=String(input.loanId??"");if(!ObjectId.isValid(loanId))throw new Error("ID pinjaman tidak valid.");
         const loan=await db.collection("bank_loans").findOne({_id:new ObjectId(loanId)},{session});if(!loan||!["active","overdue"].includes(loan.status))throw new Error("Pinjaman aktif tidak ditemukan.");
-        const repayment=money(input.amount),currentGlobal=(input.season-1)*rules.periodsPerSeason+input.period,dueGlobal=(Number(loan.season)-1)*rules.periodsPerSeason+Number(loan.due_period),periods=Math.max(0,currentGlobal-dueGlobal);
+        const repayment=money(input.amount),currentGlobal=(input.season-1)*rules.periodsPerSeason+input.period,dueGlobal=(Number(loan.season)-1)*Number(loan.periods_per_season??rules.periodsPerSeason)+Number(loan.due_period),periods=Math.max(0,currentGlobal-dueGlobal);
         const interest=periods>0?Math.round(Number(loan.remaining)*rules.loans.lateInterestPerPeriod*periods):0;
         const due=Number(loan.remaining)+interest;
         if(repayment<=0||repayment>due)throw new Error("Nominal pembayaran melebihi tagihan atau tidak valid.");
@@ -159,7 +159,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const t=team(String(input.teamName??"")),flags=input.flags as Record<string,boolean>;
         if(!flags||typeof flags!=="object")throw new Error("Komponen sponsorship belum dipilih.");
         const fines=await db.collection("admin_sheet_records").find({sheet_key:"transaksi","row_data.c2":t.name,"row_data.c9":String(input.season),"row_data.c4":{$regex:"Denda",$options:"i"},voided:{$ne:true}},{session}).toArray();
-        const debts=await db.collection("bank_loans").find({team:t.name,season:input.season,status:{$in:["active","overdue"]}},{session}).toArray();
+        const debts=await db.collection("bank_loans").find({team:t.name,status:{$in:["active","overdue"]}},{session}).toArray();
         if(flags.t2&&fines.length)throw new Error("T2 tidak memenuhi syarat: tim memiliki catatan denda pada season ini.");
         if(flags.t4&&debts.length)throw new Error("T4 tidak memenuhi syarat: tim masih memiliki hutang bank season ini.");
         const amount=(flags.t1?rules.sponsorship.participation:0)+(flags.t2?rules.sponsorship.zeroFines:0)+(flags.t3?rules.sponsorship.guaranteed:0)+(flags.t4?rules.sponsorship.zeroDebt:0);
