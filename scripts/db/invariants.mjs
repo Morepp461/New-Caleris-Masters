@@ -59,5 +59,14 @@ export function assertBalancedLedgerTotals(debitTotalMinor, creditTotalMinor) {
 }
 
 export function assertUniqueIdempotencyKeys(records, field = "idempotency_key") {
-  return assertUniqueIds(records, field);
+  const seen = new Set();
+  for (const record of records) {
+    const value = record?.[field];
+    if (typeof value !== "string" || value.length === 0) {
+      throw new Error(`Missing idempotency key: ${field}.`);
+    }
+    if (seen.has(value)) throw new Error(`Duplicate idempotency key: ${value}.`);
+    seen.add(value);
+  }
+  return true;
 }
