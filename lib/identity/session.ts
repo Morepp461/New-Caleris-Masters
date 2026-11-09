@@ -129,7 +129,7 @@ export async function revokeCurrentSession(request: NextRequest) {
   const db = await getMongoDatabase();
   const now = new Date();
   await db.collection("player_sessions").updateOne(
-    { session_token_hash: digest(token), status: "ACTIVE" },
+    { session_token_hash: hashOpaqueToken(token), status: "ACTIVE" },
     { $set: { status: "REVOKED", revoked_at: now, revocation_reason: "USER_LOGOUT", updated_at: now } },
   );
 }
