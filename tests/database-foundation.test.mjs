@@ -9,9 +9,11 @@ test("domain collection catalog matches the supplied data dictionary", () => {
   assert.ok(DOMAIN_COLLECTIONS.includes("ledger_entries"));
   assert.ok(DOMAIN_COLLECTIONS.includes("race_sessions"));
   assert.ok(DOMAIN_COLLECTIONS.includes("outbox_events"));
+  assert.ok(!DOMAIN_COLLECTIONS.includes("role_history"));
 });
 
-test("migration index names are unique and reference known collections", () => {
+test("all source-backed custom indexes are represented once", () => {
+  assert.equal(INDEXES.length, 38);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {
