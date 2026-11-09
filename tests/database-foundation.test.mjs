@@ -13,7 +13,7 @@ test("domain collection catalog matches the supplied data dictionary", () => {
 });
 
 test("all source-backed custom indexes are represented once", () => {
-  assert.equal(INDEXES.length, 39);
+  assert.equal(INDEXES.length, 40);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {
@@ -48,4 +48,27 @@ test("race event has one active authoritative session", () => {
 test("UUID baseline validator requires only immutable string _id", () => {
   assert.deepEqual(UUID_BASELINE_VALIDATOR.$jsonSchema.required, ["_id"]);
   assert.equal(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
+});
+
+test("division names and codes are both unique", () => {
+  const code = INDEXES.find(([, name]) => name === "uq_divisions_code");
+  const name = INDEXES.find(([, indexName]) => indexName === "uq_divisions_name");
+  assert.ok(code);
+  assert.ok(name);
+  assert.equal(code[2].unique, true);
+  assert.deepEqual(code[2].keys, { code: 1 });
+  assert.equal(name[2].unique, true);
+  assert.deepEqual(name[2].keys, { name: 1 });
+});
+
+test("race event round is unique within season and division", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_race_events_season_division_round");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { season_id: 1, division_id: 1, round_number: 1 });
+});
+
+test("index names are unique per collection", () => {
+  const names = INDEXES.map(([collection, name]) => `${collection}.${name}`);
+  assert.equal(new Set(names).size, names.length);
 });
