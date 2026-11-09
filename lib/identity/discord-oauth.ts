@@ -34,12 +34,12 @@ export function buildDiscordAuthorizationUrl(state: string) {
   url.searchParams.set("client_id", config.clientId);
   url.searchParams.set("redirect_uri", config.redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "identify");
+  url.searchParams.set("scope", "identify email");
   url.searchParams.set("state", state);
   return url;
 }
 
-type DiscordProfile = { id: string; username: string; avatar: string | null; global_name?: string | null };
+type DiscordProfile = { id: string; username: string; avatar: string | null; global_name?: string | null; email?: string; verified?: boolean };
 
 export async function exchangeDiscordCode(code: string): Promise<DiscordProfile> {
   const config = getDiscordOAuthConfig();
@@ -66,7 +66,7 @@ export async function exchangeDiscordCode(code: string): Promise<DiscordProfile>
   });
   if (!profileResponse.ok) throw new AppError("OAUTH_PROFILE_FAILED", "Discord identity could not be verified.", 401);
   const profile = await profileResponse.json() as DiscordProfile;
-  if (!profile.id || !profile.username) throw new AppError("OAUTH_PROFILE_INVALID", "Discord returned an invalid identity.", 401);
+  if (!profile.id || !profile.username || !profile.email || profile.verified !== true) throw new AppError("OAUTH_PROFILE_INVALID", "Discord did not return a verified identity and email.", 401);
   return profile;
 }
 
