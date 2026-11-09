@@ -1,4 +1,6 @@
-import Link from "next/link";\n\nconst stats = [
+import Link from "next/link";
+
+const stats = [
   { label: "MEMBERS", value: "00", note: "The grid is waiting" },
   { label: "TEAMS", value: "00", note: "No constructors registered" },
   { label: "CIRCULATING ¢P", value: "0", note: "Economy not activated" },
@@ -40,7 +42,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#universe">THE UNIVERSE</a>
-          <Link href="/teams">TEAMS</Link>\n          <a href="#divisions">DIVISIONS</a>
+          <Link href="/teams">TEAMS</Link>
+          <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>
         <a className="login-link" href="/api/v1/auth/discord/start">PLAYER ACCESS <span>↗</span></a>
