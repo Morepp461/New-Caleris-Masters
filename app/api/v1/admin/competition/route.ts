@@ -12,7 +12,9 @@ import { canAmendRuleset, nextRulesetVersion, normalizeSeasonStatus, transitionE
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-// MongoDB documents are validated at the collection boundary.\n// eslint-disable-next-line @typescript-eslint/no-explicit-any\ntype Doc = { _id: string; [key: string]: any };
+// MongoDB documents are validated at the collection boundary.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type Doc = { _id: string; [key: string]: any };
 const now = () => new Date();
 const fail = (code: string, message: string, status = 409) => new AppError(code, message, status);
 const audit = async (db: Awaited<ReturnType<typeof getMongoDatabase>>, actorId: string, action: string, targetType: string, targetId: string, before?: unknown, after?: unknown) => {
@@ -51,7 +53,32 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     await audit(db, actorId, "DIVISION_CREATED", "DIVISION", id, undefined, { name, code, tier });
     return success({ divisionId: id, status: "ACTIVE" }, meta, 201);
   }
-  if (action === "UPDATE_DIVISION") {\n    const divisionId = readString(body.divisionId, "divisionId", { max: 64 });\n    const division = await divisions.findOne({ _id: divisionId });\n    if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);\n    if (["ARCHIVED"].includes(String(division.status))) throw fail("DIVISION_ARCHIVED", "Archived divisions cannot be edited.");\n    const patch: Record<string, unknown> = { updated_at: now() };\n    if (body.name !== undefined) patch.name = readString(body.name, "name", { min: 3, max: 60 });\n    if (body.description !== undefined) patch.description = readString(body.description, "description", { min: 0, max: 500 });\n    if (body.tier !== undefined) { const tier = Number(body.tier); if (!Number.isSafeInteger(tier) || tier < 1 || tier > 20) throw new AppError("INVALID_TIER", "Tier must be an integer from 1 to 20.", 400); patch.tier = tier; }\n    if (body.displayOrder !== undefined) { const order = Number(body.displayOrder); if (!Number.isSafeInteger(order) || order < 1) throw new AppError("INVALID_DISPLAY_ORDER", "Display order must be a positive integer.", 400); patch.display_order = order; }\n    if (body.status !== undefined) { const status = readString(body.status, "status", { max: 20 }).toUpperCase(); if (!["ACTIVE", "INACTIVE"].includes(status)) throw new AppError("INVALID_DIVISION_STATUS", "Division status must be ACTIVE or INACTIVE.", 400); if (status === "INACTIVE" && await db.collection("teams").findOne({ division_id: divisionId, status: "ACTIVE" })) throw fail("DIVISION_HAS_ACTIVE_TEAMS", "A division with active teams cannot be deactivated."); patch.status = status; }\n    await divisions.updateOne({ _id: divisionId }, { $set: patch });\n    await audit(db, actorId, "DIVISION_UPDATED", "DIVISION", divisionId, { status: division.status, tier: division.tier, display_order: division.display_order }, patch);\n    return success({ divisionId, updated: true }, meta);\n  }\n  if (action === "ARCHIVE_DIVISION") {\n    const divisionId = readString(body.divisionId, "divisionId", { max: 64 });\n    const division = await divisions.findOne({ _id: divisionId });\n    if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);\n    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection("season_rulesets").findOne({ division_id: divisionId, status: "LOCKED" }), db.collection("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);\n    if (activeTeams || activeSeason || activeEvents) throw fail("DIVISION_IN_USE", "Division has active teams, locked regulations or open race events.");\n    await divisions.updateOne({ _id: divisionId }, { $set: { status: "ARCHIVED", updated_at: now() } });\n    await audit(db, actorId, "DIVISION_ARCHIVED", "DIVISION", divisionId, { status: division.status }, { status: "ARCHIVED" });\n    return success({ divisionId, status: "ARCHIVED" }, meta);\n  }\n  if (action === "CREATE_SEASON") {
+  if (action === "UPDATE_DIVISION") {
+    const divisionId = readString(body.divisionId, "divisionId", { max: 64 });
+    const division = await divisions.findOne({ _id: divisionId });
+    if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);
+    if (["ARCHIVED"].includes(String(division.status))) throw fail("DIVISION_ARCHIVED", "Archived divisions cannot be edited.");
+    const patch: Record<string, unknown> = { updated_at: now() };
+    if (body.name !== undefined) patch.name = readString(body.name, "name", { min: 3, max: 60 });
+    if (body.description !== undefined) patch.description = readString(body.description, "description", { min: 0, max: 500 });
+    if (body.tier !== undefined) { const tier = Number(body.tier); if (!Number.isSafeInteger(tier) || tier < 1 || tier > 20) throw new AppError("INVALID_TIER", "Tier must be an integer from 1 to 20.", 400); patch.tier = tier; }
+    if (body.displayOrder !== undefined) { const order = Number(body.displayOrder); if (!Number.isSafeInteger(order) || order < 1) throw new AppError("INVALID_DISPLAY_ORDER", "Display order must be a positive integer.", 400); patch.display_order = order; }
+    if (body.status !== undefined) { const status = readString(body.status, "status", { max: 20 }).toUpperCase(); if (!["ACTIVE", "INACTIVE"].includes(status)) throw new AppError("INVALID_DIVISION_STATUS", "Division status must be ACTIVE or INACTIVE.", 400); if (status === "INACTIVE" && await db.collection("teams").findOne({ division_id: divisionId, status: "ACTIVE" })) throw fail("DIVISION_HAS_ACTIVE_TEAMS", "A division with active teams cannot be deactivated."); patch.status = status; }
+    await divisions.updateOne({ _id: divisionId }, { $set: patch });
+    await audit(db, actorId, "DIVISION_UPDATED", "DIVISION", divisionId, { status: division.status, tier: division.tier, display_order: division.display_order }, patch);
+    return success({ divisionId, updated: true }, meta);
+  }
+  if (action === "ARCHIVE_DIVISION") {
+    const divisionId = readString(body.divisionId, "divisionId", { max: 64 });
+    const division = await divisions.findOne({ _id: divisionId });
+    if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);
+    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection("season_rulesets").findOne({ division_id: divisionId, status: "LOCKED" }), db.collection("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);
+    if (activeTeams || activeSeason || activeEvents) throw fail("DIVISION_IN_USE", "Division has active teams, locked regulations or open race events.");
+    await divisions.updateOne({ _id: divisionId }, { $set: { status: "ARCHIVED", updated_at: now() } });
+    await audit(db, actorId, "DIVISION_ARCHIVED", "DIVISION", divisionId, { status: division.status }, { status: "ARCHIVED" });
+    return success({ divisionId, status: "ARCHIVED" }, meta);
+  }
+  if (action === "CREATE_SEASON") {
     const name = readString(body.name, "name", { min: 2, max: 60 }), seasonNumber = Number(body.seasonNumber);
     if (!Number.isSafeInteger(seasonNumber) || seasonNumber < 1) throw new AppError("INVALID_SEASON_NUMBER", "Season number must be a positive integer.", 400);
     if (await seasons.findOne({ season_number: seasonNumber })) throw fail("SEASON_EXISTS", "Season number already exists.");
@@ -113,7 +140,17 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     await audit(db, actorId, "RACE_CALENDAR_CREATED", "RACE_CALENDAR", id, undefined, { seasonId, divisionId, totalRounds });
     return success({ calendarId: id, status: "DRAFT" }, meta, 201);
   }
-  if (action === "ACTIVATE_CALENDAR") {\n    const calendarId = readString(body.calendarId, "calendarId", { max: 64 });\n    const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: "DRAFT" });\n    if (!calendar) throw fail("CALENDAR_NOT_DRAFT", "Only a draft calendar can be activated.");\n    const [season, ruleset] = await Promise.all([seasons.findOne({ _id: calendar.season_id, status: { $in: ["PLANNED", "REGISTRATION"] } }), db.collection("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" })]);\n    if (!season || !ruleset) throw fail("CALENDAR_SETUP_INCOMPLETE", "Calendar requires an open season and locked ruleset.");\n    await db.collection("race_calendars").updateOne({ _id: calendarId, status: "DRAFT" }, { $set: { status: "ACTIVE", activated_at: now(), updated_at: now() } });\n    await audit(db, actorId, "RACE_CALENDAR_ACTIVATED", "RACE_CALENDAR", calendarId, { status: "DRAFT" }, { status: "ACTIVE" });\n    return success({ calendarId, status: "ACTIVE" }, meta);\n  }\n  if (action === "CREATE_EVENT") {
+  if (action === "ACTIVATE_CALENDAR") {
+    const calendarId = readString(body.calendarId, "calendarId", { max: 64 });
+    const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: "DRAFT" });
+    if (!calendar) throw fail("CALENDAR_NOT_DRAFT", "Only a draft calendar can be activated.");
+    const [season, ruleset] = await Promise.all([seasons.findOne({ _id: calendar.season_id, status: { $in: ["PLANNED", "REGISTRATION"] } }), db.collection("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" })]);
+    if (!season || !ruleset) throw fail("CALENDAR_SETUP_INCOMPLETE", "Calendar requires an open season and locked ruleset.");
+    await db.collection("race_calendars").updateOne({ _id: calendarId, status: "DRAFT" }, { $set: { status: "ACTIVE", activated_at: now(), updated_at: now() } });
+    await audit(db, actorId, "RACE_CALENDAR_ACTIVATED", "RACE_CALENDAR", calendarId, { status: "DRAFT" }, { status: "ACTIVE" });
+    return success({ calendarId, status: "ACTIVE" }, meta);
+  }
+  if (action === "CREATE_EVENT") {
     const calendarId = readString(body.calendarId, "calendarId", { max: 64 }), circuitId = readString(body.circuitId, "circuitId", { max: 64 }), circuitVersionId = readString(body.circuitVersionId, "circuitVersionId", { max: 64 });
     const roundNumber = Number(body.roundNumber), totalLaps = Number(body.totalLaps), raceFormat = readString(body.raceFormat, "raceFormat", { max: 24 }).toUpperCase(), scheduledStartAt = new Date(String(body.scheduledStartAt));
     if (!Number.isSafeInteger(roundNumber) || roundNumber < 1 || !Number.isSafeInteger(totalLaps) || totalLaps < 1 || Number.isNaN(scheduledStartAt.getTime())) throw new AppError("INVALID_EVENT_CONFIGURATION", "Round, laps and scheduled start must be valid.", 400);
