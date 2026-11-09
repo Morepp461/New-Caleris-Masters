@@ -67,7 +67,7 @@ jobs:
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import { MongoClient } from "mongodb";
-          import { DOMAIN_COLLECTIONS, INDEXES, UUID_BASELINE_VALIDATOR } from "./scripts/db/collections.mjs";
+          import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES } from "./scripts/db/collections.mjs";
 
           const client = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 2,
@@ -99,14 +99,14 @@ jobs:
               const info = await db.listCollections({ name: collectionName }).next();
               assert.ok(info, `Missing collection metadata: ${collectionName}`);
               if (collectionName !== "schema_migrations") {
-                assert.deepEqual(info.options?.validator, UUID_BASELINE_VALIDATOR,
+                assert.deepEqual(info.options?.validator, COLLECTION_VALIDATORS[collectionName],
                   `Validator mismatch: ${collectionName}`);
                 const count = await db.collection(collectionName).countDocuments({});
                 assert.equal(count, 0, `Expected empty initial state; found ${count} documents in ${collectionName}`);
               }
             }
 
-            console.log(`Verified ${DOMAIN_COLLECTIONS.length} domain collections, ${INDEXES.length} custom indexes, UUID validators, migration history, and zero seeded domain documents in ${process.env.MONGODB_DB}.`);
+            console.log(`Verified ${DOMAIN_COLLECTIONS.length} domain collections, ${INDEXES.length} custom indexes, collection-specific identifier validators, migration history, and zero seeded domain documents in ${process.env.MONGODB_DB}.`);
           } finally {
             await client.close();
           }
