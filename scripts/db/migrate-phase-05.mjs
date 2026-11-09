@@ -112,7 +112,7 @@ try {
     const now = new Date();
     await db.collection("game_settings").updateOne(
       { _id: "team_management_rules" },
-      { $setOnInsert: { value: definition.settings, version: 1, updated_at: now, updated_by: "SYSTEM" } },
+      { $setOnInsert: { value: definition.settings, version: 1, created_at: now, updated_at: now, updated_by: "SYSTEM" } },
       { upsert: true },
     );
     await migrations.insertOne({
