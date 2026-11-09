@@ -1,5 +1,5 @@
-import Link from "next/link";
 "use client";
+import Link from "next/link";
 import {useEffect,useState} from "react";
 type PublicProfile={username:string;display_name?:string;avatar_url?:string|null;active_role?:string;level?:number;driver_name?:string;driver_number?:number|null};
 export default function PublicPlayerPage({params}:{params:Promise<{username:string}>}){
