@@ -5,7 +5,6 @@ function getMongoUri(): string {
   if (!value) throw new Error("Missing MONGODB_URI environment variable");
   return value;
 }
-const uri = getMongoUri();
 const databaseName = process.env.MONGODB_DB ?? "caleris_masters";
 
 type MongoGlobal = typeof globalThis & {
@@ -18,7 +17,7 @@ const globalMongo = globalThis as MongoGlobal;
 export async function getMongoClient(): Promise<MongoClient> {
   if (globalMongo.__calerisMongoClient) return globalMongo.__calerisMongoClient;
   if (!globalMongo.__calerisMongoPromise) {
-    const client = new MongoClient(uri, {
+    const client = new MongoClient(getMongoUri(), {
       maxPoolSize: 5,
       minPoolSize: 0,
       maxIdleTimeMS: 30000,
