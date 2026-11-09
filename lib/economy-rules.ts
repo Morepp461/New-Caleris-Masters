@@ -6,6 +6,7 @@ export type CalerisRuleset = {
   status: "draft" | "active" | "closed";
   currency: string;
   balancingEveryRaces: number;
+  periodsPerSeason: number;
   teamExpenseLimitRate: number;
   transferTax: { enabled: boolean; threshold: number; rate: number };
   wealthTax: { enabled: boolean; individualThreshold: number; teamThreshold: number; rate: number };
@@ -25,6 +26,7 @@ export type CalerisRuleset = {
 export const DEFAULT_RULESET: Omit<CalerisRuleset, "season" | "name" | "status"> = {
   currency: "¢p",
   balancingEveryRaces: 5,
+  periodsPerSeason: 4,
   teamExpenseLimitRate: 0.8,
   transferTax: { enabled: true, threshold: 50000, rate: 0.1 },
   wealthTax: { enabled: true, individualThreshold: 150000, teamThreshold: 300000, rate: 0.1 },
@@ -78,7 +80,7 @@ export function validateRuleset(input: unknown): asserts input is CalerisRuleset
   if (!input || typeof input !== "object") throw new Error("Ruleset tidak valid.");
   const r = input as CalerisRuleset;
   const numeric = [
-    r.season, r.balancingEveryRaces, r.teamExpenseLimitRate,
+    r.season, r.balancingEveryRaces, r.periodsPerSeason, r.teamExpenseLimitRate,
     r.transferTax?.threshold, r.transferTax?.rate, r.wealthTax?.individualThreshold,
     r.wealthTax?.teamThreshold, r.wealthTax?.rate, r.inactive?.driverBalanceCutRate,
     r.inactive?.driverLicenseDeduction, r.inactive?.teamFine, r.loans?.eligibilityBalanceBelow,
@@ -91,7 +93,7 @@ export function validateRuleset(input: unknown): asserts input is CalerisRuleset
     r.salary?.agentPerSeason, r.salary?.journalistPerSeason, r.salary?.journalistViewBonus,
     r.salary?.journalistViewThreshold, r.salary?.fiaPerSeason
   ];
-  if (!Number.isInteger(r.season) || r.season < 1 || !Number.isInteger(r.balancingEveryRaces) || r.balancingEveryRaces < 1) throw new Error("Season dan interval balancing harus bilangan bulat positif.");
+  if (!Number.isInteger(r.season) || r.season < 1 || !Number.isInteger(r.balancingEveryRaces) || r.balancingEveryRaces < 1 || !Number.isInteger(r.periodsPerSeason) || r.periodsPerSeason < 1) throw new Error("Season dan interval balancing harus bilangan bulat positif.");
   if (numeric.some(n => typeof n !== "number" || !Number.isFinite(n) || n < 0)) throw new Error("Semua nominal dan parameter numerik harus bernilai valid dan tidak negatif.");
   if (r.teamExpenseLimitRate > 1 || r.transferTax.rate > 1 || r.wealthTax.rate > 1 || r.inactive.driverBalanceCutRate > 1 || r.loans.lateInterestPerPeriod > 1) throw new Error("Parameter persentase harus berada pada rentang 0 sampai 1.");
   if (!r.name?.trim() || !r.currency?.trim() || !r.tariffs || !r.teamRegistrationFees || !r.roleUpgradeFees || !r.enabledWorkflows) throw new Error("Nama ruleset, mata uang, tarif, biaya registrasi, upgrade role, dan workflow wajib tersedia.");
