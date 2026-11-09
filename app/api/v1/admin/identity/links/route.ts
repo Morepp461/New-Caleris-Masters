@@ -29,7 +29,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     if (!player) throw new AppError("PLAYER_NOT_FOUND", "Active player was not found.", 404);
     const existingDiscord = await db.collection("auth_accounts").findOne({ provider: "discord", provider_user_id: discordUserId }, { session });
     if (existingDiscord) throw new AppError("DISCORD_IDENTITY_ALREADY_LINKED", "This Discord identity is already linked.", 409);
-    const existingPlayerLink = await db.collection("auth_accounts").findOne({ provider: "discord", player_id: playerId }, { session });
+    const existingPlayerLink = await db.collection("auth_accounts").findOne({ provider: "discord", player_id: playerId, status: { $ne: "REVOKED" } }, { session });
     if (existingPlayerLink) throw new AppError("PLAYER_ALREADY_LINKED", "This player already has a Discord identity.", 409);
 
     await db.collection("auth_accounts").insertOne({
@@ -37,6 +37,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
       player_id: playerId,
       provider: "discord",
       provider_user_id: discordUserId,
+      status: "PENDING",
       provider_email: "",
       linked_at: now,
     }, { session });
