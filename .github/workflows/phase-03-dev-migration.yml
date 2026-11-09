@@ -1,0 +1,103 @@
+name: Phase 03 Development Database Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      confirm_development_database:
+        description: 'Ketik RUN-DEV untuk mengizinkan migrasi ke caleris_masters_dev'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-03-dev-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-development:
+    name: Apply and verify Phase 03 migration (development only)
+    if: ${{ inputs.confirm_development_database == 'RUN-DEV' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" ]]; then
+            echo "::error::Repository secret MONGODB_URI_DEV is missing."
+            exit 1
+          fi
+          if [[ "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::This workflow is restricted to caleris_masters_dev."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Apply Phase 03 migration
+        run: npm run db:migrate:phase-03
+
+      - name: Verify migration record, validator, and indexes
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+
+          const client = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 2,
+            serverSelectionTimeoutMS: 10000,
+            appName: "caleris-masters-phase-03-migration-verification",
+          });
+
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+
+            const migration = await db.collection("schema_migrations").findOne({
+              _id: "002-identity-session-and-security-audit",
+            });
+            assert.ok(migration, "Phase 03 migration history record is missing.");
+            assert.equal(migration.database, "caleris_masters_dev");
+            assert.equal(migration.index_count, 4);
+
+            const sessionInfo = await db.listCollections({ name: "player_sessions" }).next();
+            assert.ok(sessionInfo, "player_sessions collection is missing.");
+            assert.equal(sessionInfo.options?.validationLevel, "strict");
+            assert.equal(sessionInfo.options?.validationAction, "error");
+            assert.ok(sessionInfo.options?.validator?.$jsonSchema, "player_sessions JSON schema validator is missing.");
+
+            const expected = [
+              ["player_sessions", "uq_player_sessions_token_hash"],
+              ["player_sessions", "ix_player_sessions_player_status_expiry"],
+              ["auth_accounts", "uq_auth_accounts_provider_player"],
+              ["audit_logs", "ix_audit_logs_action_created"],
+            ];
+
+            for (const [collectionName, indexName] of expected) {
+              const indexes = await db.collection(collectionName).listIndexes().toArray();
+              assert.ok(indexes.some((index) => index.name === indexName),
+                `Missing index: ${collectionName}.${indexName}`);
+            }
+
+            console.log("Verified Phase 03 migration record, strict session validator, and all four indexes in caleris_masters_dev.");
+          } finally {
+            await client.close();
+          }
+          NODE
