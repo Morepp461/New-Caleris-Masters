@@ -7,11 +7,13 @@ import { requireOperator } from "@/lib/identity/permissions";
 import { apiHandler } from "@/lib/server/api-handler";
 import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
+import { assertSameOrigin } from "@/lib/server/csrf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const DELETE = apiHandler(async (request: NextRequest, context, meta) => {
+  assertSameOrigin(request);
   const principal = await getSessionPrincipal(request);
   await requireOperator(principal);
   const params = await context.params;
