@@ -51,6 +51,13 @@ export async function postLedgerEntry(input: LedgerInput, adminId: string) {
   if (rules.status === "closed") throw new Error("Season sudah ditutup. Transaksi baru tidak dapat diposting.");
   if (!rules.enabledWorkflows.manualLedger) throw new Error("Pencatatan manual dinonaktifkan pada ruleset season ini.");
 
+  if (["Daily Check-in","Poster After-Race (Driver)"].includes(input.category)) {
+    const sameDay = await ctx.db.collection("admin_sheet_records").findOne({
+      sheet_key:"transaksi", "row_data.c2":ctx.canonicalName, "row_data.c4":input.category,
+      "row_data.c1":input.date || new Date().toISOString().slice(0,10), "row_data.c9":String(input.season), voided:{$ne:true}
+    });
+    if (sameDay) throw new Error(`Kategori ${input.category} hanya dapat dicatat satu kali per hari.`);
+  }
   const points = Math.max(0, Math.floor(amountOf(input.points)));
   let amount = input.amount === undefined ? amountOf(rules.tariffs[input.category]) : amountOf(input.amount);
   if (input.category.toLowerCase().includes("development mobil")) {
