@@ -24,7 +24,6 @@ try{
   const names=new Set((await db.listCollections({}, {nameOnly:true}).toArray()).map(x=>x.name));
   for(const name of ["development_rulesets","rnd_projects"]){if(!names.has(name))await db.createCollection(name,{validator:{$jsonSchema:{bsonType:"object",required:["_id","created_at","updated_at"],properties:{_id:{bsonType:"string",pattern:"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$"},created_at:{bsonType:"date"},updated_at:{bsonType:"date"}},additionalProperties:true}},validationLevel:"strict",validationAction:"error"});}
   for(const [collection,keys,options] of indexes)await db.collection(collection).createIndex(keys,options);
-  const tx=db.collection("development_transactions");
   const info=await db.listCollections({name:"development_transactions"},{nameOnly:false}).next();
   const validator=info?.options?.validator??{$jsonSchema:{bsonType:"object",properties:{}}};
   if(validator.$jsonSchema){validator.$jsonSchema.properties??={};Object.assign(validator.$jsonSchema.properties,{attribute_key:{bsonType:"string"},old_value:{bsonType:"int"},new_value:{bsonType:"int"},season_id:{bsonType:"string"},ruleset_id:{bsonType:"string"},ruleset_version:{bsonType:["int","long"]},project_id:{bsonType:"string"},project_key:{bsonType:"string"}});await db.command({collMod:"development_transactions",validator,validationLevel:"strict",validationAction:"error"});}
