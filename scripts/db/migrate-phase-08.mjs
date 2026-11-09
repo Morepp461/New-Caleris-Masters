@@ -6,6 +6,7 @@ const migrationId = "007-economy-currency-development-wallets";
 const definition = { indexes: [
   ["ledger_transactions", { created_at: -1, status: 1 }, { name: "ix_ledger_transactions_created_status" }],
   ["ledger_transactions", { category: 1, created_at: -1 }, { name: "ix_ledger_transactions_category_date" }],
+    ["ledger_transactions", { reference_type: 1, reference_id: 1 }, { unique: true, name: "uq_ledger_transaction_single_reversal", partialFilterExpression: { category: "REVERSAL" } }],
   ["ledger_entries", { transaction_id: 1, account_id: 1, direction: 1 }, { unique: true, name: "uq_ledger_entry_transaction_account_direction" }],
   ["development_transactions", { idempotency_key: 1 }, { unique: true, name: "uq_development_transactions_idempotency" }],
   ["development_transactions", { owner_type: 1, owner_id: 1, token_type: 1, created_at: -1 }, { name: "ix_development_transactions_owner_token_date" }],
