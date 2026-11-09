@@ -8,7 +8,6 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { resolveTeamRegistrationFee } from "@/lib/teams/policy.mjs";
 export const runtime="nodejs"; export const dynamic="force-dynamic";
 type Doc={_id:string;[key:string]:any};
 const ATTRIBUTES={race_pace:50,qualifying_pace:50,engine_power:50,aero_power:50,low_speed_corners:50,high_speed_corners:50,traction:50,mechanical_grip:50,team_tyre_management:50,strategy_quality:50,team_morale:50,reliability:50,tyre_wear_resistance:50,pit_stop_efficiency:50,drs_efficiency:50,ers_efficiency:50};
