@@ -40,7 +40,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         </a>
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#universe">THE UNIVERSE</a>
-          <a href="#divisions">DIVISIONS</a>
+          <a href="/teams">TEAMS</a>\n          <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>
         <a className="login-link" href="/api/v1/auth/discord/start">PLAYER ACCESS <span>↗</span></a>
