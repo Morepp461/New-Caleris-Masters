@@ -60,7 +60,19 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
       const bank:Account={name:"Vreeo Bank",type:"bank"};
       const add=async(a:Account,d:Direction,c:string,n:number,desc="")=>{await accountExists(db,a);entries.push({account:a,direction:d,category:c,amount:money(n),description:desc});};
 
-      if(action==="transfer"){
+      if(action==="reverse_workflow"){
+        const target=String(input.referenceId??"");
+        if(!target)throw new Error("Reference ID workflow wajib diisi.");
+        const originals=await db.collection("admin_sheet_records").find({sheet_key:"transaksi",reference_id:target,voided:{$ne:true}},{session}).toArray();
+        if(!originals.length)throw new Error("Workflow aktif tidak ditemukan atau sudah dibatalkan.");
+        for(const original of originals){
+          const row=original.row_data??{},type=original.account_type==="bank"?"bank":original.account_type==="team"?"team":"individual";
+          const account:Account={name:String(row.c2??""),type};
+          entries.push({account,direction:row.c3==="Masuk"?"Keluar":"Masuk",category:`Reversal: ${String(row.c4??"Transaksi")}`,amount:money(row.c6),description:`Pembatalan transaksi ${target}`});
+          await db.collection("admin_sheet_records").updateOne({_id:original._id},{$set:{voided:true,voided_at:new Date(),voided_by:adminId}},{session});
+        }
+        result={...result,reversedReference:target,entries:originals.length};
+      } else if(action==="transfer"){
         if(!rules.enabledWorkflows.transfer)throw new Error("Workflow transfer dinonaktifkan.");
         const driverName=String(input.driverName??""),from=team(String(input.fromTeam??"")),to=team(String(input.toTeam??"")),gross=money(input.grossAmount);
         if(!driverName||from.name===to.name||gross<=0)throw new Error("Data transfer tidak valid.");
