@@ -74,7 +74,7 @@ export const DEFAULT_RULESET: Omit<CalerisRuleset, "season" | "name" | "status">
   enabledWorkflows: {
     manualLedger: true, transfer: true, payroll: true, loans: true, wealthTax: true,
     inactivePenalties: true, sponsorship: true, prizeMoney: true, teamAid: true,
-    development: true, teamRegistration: true, roleUpgrade: true, seasonClose: true
+    development: true, teamRegistration: true, roleUpgrade: true, enginePurchase: true, principalEvaluation: true, agentCommission: true, journalistBonus: true, fiaPerformanceBonus: true, dailyReward: true, seasonClose: true
   }
 };
 
