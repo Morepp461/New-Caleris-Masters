@@ -360,8 +360,11 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===memberName.toLowerCase()&&String(x.row_data?.c3??"")==="Driver");
         if(!member)throw new Error("Reward ini hanya untuk Driver aktif.");
         const day=String(input.date??new Date().toISOString().slice(0,10));
-        if(await db.collection("economy_workflows").findOne({action:"daily_reward",season:input.season,"input.memberName":memberName,"input.rewardType":rewardType,"input.date":day,status:"posted"},{session}))throw new Error("Reward jenis ini sudah diklaim hari ini.");
-        await add(bank,"Keluar",rewardType,amount,"Reward "+memberName+" tanggal "+day);
+        const contentId=String(input.contentId??"").trim();
+        if(rewardType==="Poster Sosmed (Driver)"&&(!contentId||input.vreeoTagged!==true))throw new Error("Poster sosial wajib memiliki ID konten unik serta bukti logo dan tag Vreeo.");
+        const duplicateFilter=rewardType==="Poster Sosmed (Driver)"?{action:"daily_reward",season:input.season,"input.memberName":memberName,"input.rewardType":rewardType,"input.contentId":contentId,status:"posted"}:{action:"daily_reward",season:input.season,"input.memberName":memberName,"input.rewardType":rewardType,"input.date":day,status:"posted"};
+        if(await db.collection("economy_workflows").findOne(duplicateFilter,{session}))throw new Error("Reward ini sudah pernah diklaim untuk periode konten/hari tersebut.");
+        await add(bank,"Keluar",rewardType,amount,"Reward "+memberName+" tanggal "+day+" "+contentId);
         await add(driver(memberName),"Masuk",rewardType,amount,"Reward aktivitas Driver");
         result={...result,member:memberName,rewardType,amount,date:day};
       } else if(action==="license_activity"){
