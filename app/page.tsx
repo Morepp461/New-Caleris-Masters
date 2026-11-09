@@ -43,6 +43,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <nav className="main-nav" aria-label="Main navigation">
           <a href="#universe">THE UNIVERSE</a>
           <Link href="/teams">TEAMS</Link>
+          <Link href="/quests">QUESTS</Link>
           <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>
