@@ -1,4 +1,5 @@
 import FIELD_SCHEMA_CATALOG from "./field-schema-catalog.json" with { type: "json" };
+export { FIELD_SCHEMA_CATALOG };
 
 export const DOMAIN_COLLECTIONS = [
   "players", "auth_accounts", "role_assignments", "permissions",
