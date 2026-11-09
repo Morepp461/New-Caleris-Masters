@@ -134,7 +134,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   if (action === "CREATE_RULESET" || action === "AMEND_RULESET") {
     const seasonId = readString(body.seasonId, "seasonId", { max: 64 }), divisionId = readString(body.divisionId, "divisionId", { max: 64 });
     const season = await seasons.findOne({ _id: seasonId }); const division = await divisions.findOne({ _id: divisionId, status: { $ne: "ARCHIVED" } });
-    if (!season || !division) throw new AppError("COMPETITION_REFERENCE_NOT_FOUND", "Season or division was not found.", 404);
+    if (!season || !division) throw new AppError("COMPETITION_REFERENCE_NOT_FOUND", "Season or division was not found.", 404);\n    if (["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("SEASON_CLOSED", "Closed seasons cannot receive new rulesets.");
     const rules = { calendar_rules: body.calendarRules, scoring_rules: body.scoringRules, penalty_rules: body.penaltyRules, race_rules: body.raceRules, economy_rules: body.economyRules, eligibility_rules: body.eligibilityRules };
     const validation = validateRuleset(rules); if (!validation.ok) throw new AppError(validation.reason!, "Ruleset configuration is incomplete or invalid.", 400);
     const previous = await db.collection<Doc>("season_rulesets").find({ season_id: seasonId, division_id: divisionId }).sort({ version: -1 }).toArray();
