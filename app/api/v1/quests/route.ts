@@ -26,13 +26,14 @@ export const GET=apiHandler(async(request:NextRequest,_context,meta)=>{
  const expiryTime=now();
  await db.collection<Doc>("quest_assignments").updateMany({status:{$in:["ASSIGNED","IN_PROGRESS","COMPLETED","REVIEW_REQUIRED"]},expires_at:{$type:"date",$lte:expiryTime}},{$set:{status:"EXPIRED",updated_at:expiryTime}});
  if(principal.isOperator){
-  const [quests,assignments,levels,progress]=await Promise.all([
+  const [quests,assignments,levels,progress,anomalies]=await Promise.all([
    db.collection<Doc>("quests").find({}).sort({created_at:-1}).limit(200).toArray(),
    db.collection<Doc>("quest_assignments").find({}).sort({assigned_at:-1}).limit(200).toArray(),
    db.collection<Doc>("account_level_rules").find({}).sort({level:1,version:-1}).limit(200).toArray(),
-   db.collection<Doc>("quest_progress").find({}).sort({updated_at:-1}).limit(200).toArray()
+   db.collection<Doc>("quest_progress").find({}).sort({updated_at:-1}).limit(200).toArray(),
+   db.collection<Doc>("operator_actions").find({action:"QUEST_ANOMALY_FLAGGED",status:"OPEN"}).sort({created_at:-1}).limit(100).toArray()
   ]);
-  return success({operator:true,quests,assignments,levels,progress},meta);
+  return success({operator:true,quests,assignments,levels,progress,anomalies},meta);
  }
  const player=await db.collection<Doc>("players").findOne({_id:principal.playerId,account_status:"ACTIVE"});
  if(!player)throw new AppError("PLAYER_NOT_FOUND","Active player profile was not found.",404);
@@ -138,6 +139,33 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId},{$set:{status:"REVIEW_REQUIRED",updated_at:stamp}});
   await audit(db,actorId,"QUEST_EVIDENCE_SUBMITTED",assignmentId,{evidenceCount:evidence.length});
   return success({submitted:true,status:"REVIEW_REQUIRED"},meta,202);
+ }
+ if(action==="FLAG_ANOMALY"){
+  await requireOperator(principal);
+  const assignmentId=readString(body.assignmentId,"assignmentId",{max:64});
+  const reason=readString(body.reason,"reason",{min:10,max:500});
+  const assignment=await db.collection<Doc>("quest_assignments").findOne({_id:assignmentId});
+  if(!assignment)throw new AppError("ASSIGNMENT_NOT_FOUND","Quest assignment was not found.",404);
+  const actions=db.collection<Doc>("operator_actions");
+  const existing=await actions.findOne({action:"QUEST_ANOMALY_FLAGGED",target_id:assignmentId,status:"OPEN"});
+  if(existing)throw fail("ANOMALY_ALREADY_OPEN","An open anomaly review already exists for this assignment.");
+  const stamp=now(),reviewId=randomUUID();
+  await actions.insertOne({_id:reviewId,actor_id:actorId,action:"QUEST_ANOMALY_FLAGGED",target_type:"QUEST_ASSIGNMENT",target_id:assignmentId,reason,status:"OPEN",created_at:stamp,updated_at:stamp});
+  await audit(db,actorId,"QUEST_ANOMALY_FLAGGED",assignmentId,{reviewId,reason});
+  return success({reviewId,status:"OPEN"},meta,201);
+ }
+ if(action==="REVIEW_ANOMALY"){
+  await requireOperator(principal);
+  const reviewId=readString(body.reviewId,"reviewId",{max:64});
+  const decision=readString(body.decision,"decision",{max:20}).toUpperCase();
+  if(!["CONFIRMED","DISMISSED"].includes(decision))throw new AppError("INVALID_ANOMALY_DECISION","Decision must be CONFIRMED or DISMISSED.",400);
+  const actions=db.collection<Doc>("operator_actions");
+  const review=await actions.findOne({_id:reviewId,action:"QUEST_ANOMALY_FLAGGED",status:"OPEN"});
+  if(!review)throw new AppError("ANOMALY_REVIEW_NOT_FOUND","Open anomaly review was not found.",404);
+  const stamp=now();
+  await actions.updateOne({_id:reviewId,status:"OPEN"},{$set:{status:decision,reviewed_by:actorId,reviewed_at:stamp,review_note:typeof body.note==="string"?body.note.slice(0,500):"",updated_at:stamp}});
+  await audit(db,actorId,"QUEST_ANOMALY_"+decision,String(review.target_id),{reviewId,note:body.note??null});
+  return success({reviewId,status:decision},meta);
  }
  if(action==="REVIEW_EVIDENCE"){
   await requireOperator(principal);
