@@ -1,3 +1,4 @@
+import { QUERY_PLAN_CASES } from "../scripts/db/query-plan-catalog.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, LEGACY_INDEXES_TO_DROP, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
@@ -119,4 +120,14 @@ test("player and team achievements have unique participant-definition pairs", ()
   assert.equal(player[2].unique, true);
   assert.equal(team[2].unique, true);
   assert.deepEqual(COLLECTION_VALIDATORS.team_achievements.$jsonSchema.properties.team_id, { bsonType: "string" });
+});
+
+test("all source-defined primary query patterns have explain coverage", () => {
+  assert.equal(QUERY_PLAN_CASES.length, 36);
+  for (const [collection, , , expectedIndex] of QUERY_PLAN_CASES) {
+    assert.ok(DOMAIN_COLLECTIONS.includes(collection));
+    assert.ok(INDEXES.some(([indexCollection, indexName]) =>
+      indexCollection === collection && indexName === expectedIndex
+    ), `Missing expected index definition: ${collection}.${expectedIndex}`);
+  }
 });
