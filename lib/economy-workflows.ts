@@ -124,7 +124,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await add(t,"Keluar","Cicilan Pinjaman Bank",repayment,"Pelunasan pinjaman "+loan.reference_id);
         await add(bank,"Masuk","Cicilan Pinjaman Bank",repayment,"Pembayaran pinjaman");
         const interestPaid=Math.min(repayment,interestDue),principalPaid=repayment-interestPaid,newInterestAccrued=interestDue-interestPaid,newPrincipalRemaining=Math.max(0,principalRemaining-principalPaid),remain=newPrincipalRemaining+newInterestAccrued;
-        await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{remaining:remain,principal_remaining:newPrincipalRemaining,interest_accrued:newInterestAccrued,last_interest_global:currentGlobal,status:remain===0?"paid":"overdue",paid_period:remain===0?input.period:null,last_interest:newInterest,updated_at:new Date()}},{session});
+        await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{remaining:remain,principal_remaining:newPrincipalRemaining,interest_accrued:newInterestAccrued,last_interest_global:currentGlobal,status:remain===0?"paid":currentGlobal>dueGlobal?"overdue":"active",paid_period:remain===0?input.period:null,last_interest:newInterest,updated_at:new Date()}},{session});
         result={...result,team:t.name,repayment,interest:newInterest,interestPaid,principalPaid,remaining:remain};
       } else if(action==="owner_contribution"){
         const ownerName=String(input.ownerName??"");
@@ -277,7 +277,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");
         if(!owner)throw new Error("Owner aktif tidak ditemukan.");
         const fee=money(input.amount??rules.teamRegistrationFees[division]),roleFee=money(input.ownerRoleFee??rules.roleUpgradeFees.Owner??0),total=fee+roleFee;
-        await add(driver(ownerName),"Keluar","Registrasi Tim",total,"Registrasi "+name+" ("+division+") dan biaya role Owner");
+        const ownerCurrentTeam=String(owner.row_data?.c2??"");\n        const ownerChargeAccount=ownerCurrentTeam&&teams.some(x=>String(x.row_data?.c0??"")===ownerCurrentTeam)?team(ownerCurrentTeam):driver(ownerName);\n        await add(ownerChargeAccount,"Keluar","Registrasi Tim",total,"Registrasi "+name+" ("+division+") dan biaya role Owner");
         await add(bank,"Masuk","Registrasi Tim",total,"Biaya registrasi tim "+name);
         await db.collection("admin_sheet_records").insertOne({sheet_key:"data-tim",row_data:{c0:name,c1:new ObjectId().toString(),c2:division,c3:engineName,c4:new Date().toISOString().slice(0,10),c5:"Aktif",c6:ownerName,c7:"",c8:"",c9:"1",c10:"0",c11:"",c12:"",c13:"Tidak"},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
         await db.collection("admin_sheet_records").updateOne({_id:owner._id},{$set:{"row_data.c2":name,updated_at:new Date(),updated_by:adminId}},{session});
@@ -296,7 +296,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(oldRole===newRole)throw new Error("Anggota sudah memiliki role tersebut.");
         const fee=money(input.amount??rules.roleUpgradeFees[newRole]??0);
         if(fee<=0)throw new Error("Biaya upgrade role belum dikonfigurasi.");
-        await add(driver(memberName),"Keluar","Upgrade Role",fee,"Upgrade role "+oldRole+" ke "+newRole);
+        const chargeAccount:Account=oldRole==="Owner"&&String(member.row_data?.c2??"")?team(String(member.row_data.c2)):driver(memberName);\n        await add(chargeAccount,"Keluar","Upgrade Role",fee,"Upgrade role "+oldRole+" ke "+newRole);
         await add(bank,"Masuk","Upgrade Role",fee,"Biaya upgrade role "+memberName);
         await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c3":newRole,updated_at:new Date(),updated_by:adminId}},{session});
         result={...result,member:memberName,oldRole,newRole,fee};
@@ -323,7 +323,7 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(!ownerName||!teamName||inactive<0)throw new Error("Data evaluasi Principal/Owner tidak valid.");
         const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
         const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c2??"")===teamName);
-        if(!owner)throw new Error("Owner tim tidak ditemukan.");
+        if(!owner||String(owner.row_data?.c3??"")!=="Owner")throw new Error("Owner aktif tim tidak ditemukan.");
         if(await db.collection("economy_workflows").findOne({action:"principal_evaluation",season:input.season,"input.teamName":teamName,status:"posted"},{session}))throw new Error("Evaluasi subsidi tim untuk season ini sudah dicatat.");
         if(payout>0){await add(bank,"Keluar","Subsidi Tim (Evaluasi Principal)",payout,"Subsidi "+teamName+"; pengurangan "+reduction);await add(team(teamName),"Masuk","Subsidi Tim (Evaluasi Principal)",payout,"Subsidi setelah evaluasi "+ownerName);}
         await db.collection("admin_sheet_records").insertOne({sheet_key:"evaluasi-owner",row_data:{c0:"",c1:String(input.season),c2:ownerName,c3:late?"Ya":"Tidak",c4:String(inactive),c5:reduction?"Ya":"Tidak",c6:String(subsidy),c7:String(reduction),c8:exempt?"Pengecualian disetujui Admin":"Evaluasi berdasarkan data Admin",c9:teamName,c10:String(input.period)},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
