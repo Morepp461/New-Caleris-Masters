@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod, postConfiguredMoneyMovement, issueTeamLoan, repayTeamLoan, reverseMoneyTransaction } from "@/lib/economy/ledger";
+import { createEconomyAccount, postMoneyTransfer, grantDevelopmentTokens, purchaseDevelopmentTokens, closeEconomyPeriod, postConfiguredMoneyMovement, issueTeamLoan, repayTeamLoan, reverseMoneyTransaction, activateEconomyRuleset } from "@/lib/economy/ledger";
 import { defaultEconomyRules, validateEconomyRules } from "@/lib/economy/policy.mjs";
 
 export const runtime = "nodejs";
@@ -150,14 +150,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     return success({ rulesetId, updated: true }, meta);
   }
   if (action === "ACTIVATE_RULESET") {
-    const rulesetId = readString(body.rulesetId, "rulesetId", { max: 64 }), target = await db.collection<Doc>("economy_rulesets").findOne({ _id: rulesetId, status: "DRAFT" });
-    if (!target) throw new AppError("RULESET_NOT_DRAFT", "Only a draft economy ruleset can be activated.", 409);
-    const rules = validateEconomyRules(target);
-    if (!rules.ok) throw new AppError("INVALID_ECONOMY_RULES", rules.reason!, 400);
-    await db.collection<Doc>("economy_rulesets").updateMany({ season_id: target.season_id, status: "ACTIVE" }, { $set: { status: "SUPERSEDED", superseded_at: new Date(), updated_at: new Date() } });
-    await db.collection<Doc>("economy_rulesets").updateOne({ _id: rulesetId, status: "DRAFT" }, { $set: { status: "ACTIVE", activated_by: actorId, activated_at: new Date(), updated_at: new Date() } });
-    await db.collection<Doc>("audit_logs").insertOne({ _id: randomUUID(), actor_type: "OPERATOR", actor_id: actorId, action: "ECONOMY_RULESET_ACTIVATED", target_type: "ECONOMY_RULESET", target_id: rulesetId, reason: "Ruleset activated; each economic feature remains disabled unless explicitly enabled.", created_at: new Date(), updated_at: new Date() });
-    return success({ rulesetId, status: "ACTIVE", rules: rules.value }, meta);
+    return success(await activateEconomyRuleset({ rulesetId: readString(body.rulesetId, "rulesetId", { max: 64 }), actorId }), meta);
   }
   if (action === "CREATE_PERIOD") {
     const seasonId = readString(body.seasonId, "seasonId", { max: 64 }), periodNumber = Number(body.periodNumber), startAt = new Date(String(body.startAt)), endAt = new Date(String(body.endAt));
