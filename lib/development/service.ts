@@ -21,7 +21,7 @@ export async function updateDevelopmentRuleset(rulesetId:string,rules:Record<str
  const db=await getMongoDatabase(),existing=await db.collection<Doc>("development_rulesets").findOne({_id:rulesetId,status:"DRAFT"});
  if(!existing)throw new AppError("RULESET_NOT_DRAFT","Only draft development rulesets can be edited.",409);
  const stamp=new Date();
- await db.collection<Doc>("development_rulesets").updateOne({_id:rulesetId,status:"DRAFT"},{$set:{...parsed.value,updated_by:actorId,updated_at:stamp}});
+ const config={attribute_min:parsed.value.attribute_min,attribute_max:parsed.value.attribute_max,starting_values:parsed.value.starting_values,upgrade_costs:parsed.value.upgrade_costs,per_period_limits:parsed.value.per_period_limits,respec_policy:parsed.value.respec_policy,rnd:parsed.value.rnd};await db.collection<Doc>("development_rulesets").updateOne({_id:rulesetId,status:"DRAFT"},{$set:{...config,updated_by:actorId,updated_at:stamp}});
  await db.collection<Doc>("audit_logs").insertOne({_id:randomUUID(),actor_type:"OPERATOR",actor_id:actorId,action:"DEVELOPMENT_RULESET_UPDATED",target_type:"DEVELOPMENT_RULESET",target_id:rulesetId,reason:"Seasonal development pricing and limits updated.",before_state:existing,after_state:parsed.value,created_at:stamp,updated_at:stamp});
  return {rulesetId,updated:true};
 }
