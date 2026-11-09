@@ -88,7 +88,7 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
     const source = await db.collection<Doc>("economy_accounts").findOne({ _id: input.accountId, owner_type: input.ownerType, owner_id: input.ownerId, currency: "CP", status: "ACTIVE" }, { session });
     if (!source) throw new AppError("OWNER_WALLET_NOT_FOUND", "The active CP wallet for this token owner was not found.", 404);
     if (input.tokenType === "DDP") {
-      const player = await db.collection<Doc>("players").findOne({ _id: input.ownerId, account_status: "ACTIVE", active_role: "DRIVER' }, { session });
+      const player = await db.collection<Doc>("players").findOne({ _id: input.ownerId, account_status: "ACTIVE", active_role: "DRIVER" }, { session });
       if (!player) throw new AppError("DDP_DRIVER_REQUIRED", "DDP purchases require an active Driver profile.", 403);
     } else {
       const team = await db.collection<Doc>("teams").findOne({ _id: input.ownerId, owner_player_id: input.actorId, status: "ACTIVE" }, { session });
