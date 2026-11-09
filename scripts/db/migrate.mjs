@@ -1,13 +1,13 @@
 import { createHash } from "node:crypto";
 import { MongoClient } from "mongodb";
-import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, MIGRATION_ID_BASELINE_VALIDATOR } from "./collections.mjs";
+import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, LEGACY_INDEXES_TO_DROP, MIGRATION_ID_BASELINE_VALIDATOR } from "./collections.mjs";
 
 const databaseName = process.env.MONGODB_DB;
 const uri = process.env.MONGODB_URI;
 const allowProduction = process.argv.includes("--allow-production");
 const migrationId = "001-domain-collections-and-indexes";
 const migrationChecksum = createHash("sha256")
-  .update(JSON.stringify({ DOMAIN_COLLECTIONS, INDEXES, COLLECTION_VALIDATORS, MIGRATION_ID_BASELINE_VALIDATOR }))
+  .update(JSON.stringify({ DOMAIN_COLLECTIONS, INDEXES, LEGACY_INDEXES_TO_DROP, COLLECTION_VALIDATORS, MIGRATION_ID_BASELINE_VALIDATOR }))
   .digest("hex");
 
 if (!uri) throw new Error("MONGODB_URI is required.");
@@ -74,6 +74,14 @@ try {
           validationLevel: "strict",
           validationAction: "error",
         });
+      }
+    }
+
+    for (const [collectionName, indexName] of LEGACY_INDEXES_TO_DROP) {
+      const collection = db.collection(collectionName);
+      const existingIndexes = await collection.listIndexes().toArray();
+      if (existingIndexes.some((index) => index.name === indexName)) {
+        await collection.dropIndex(indexName);
       }
     }
 
