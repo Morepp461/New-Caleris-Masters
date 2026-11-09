@@ -10,6 +10,7 @@ import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
 import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow, evaluateRequirements, calculateAccountLevel } from "@/lib/progression/policy.mjs";
 import { recordXpEvent } from "@/lib/progression/xp-service";
+import { settleQuestRewardInSession } from "@/lib/economy/ledger";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -243,7 +244,9 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
     const xp=rewards.filter(r=>r.type==="XP").reduce((sum,r)=>sum+r.amount,0);
     if(xp>0)await recordXpEvent(db,session,{playerId:actorId,xpAmount:xp,eventId,sourceType:"QUEST_CLAIM",sourceId:assignmentId});
     granted=[];
-    for(const reward of rewards){
+    const activeSeason=await db.collection<Doc>("seasons").findOne({status:"ACTIVE"},{sort:{season_number:-1},session});
+    for(let rewardIndex=0;rewardIndex<rewards.length;rewardIndex++){
+     const reward=rewards[rewardIndex];
      let settlementStatus=reward.type==="XP"?"GRANTED":"PENDING_PHASE_08";
      if(reward.type==="ACHIEVEMENT"&&reward.achievement_id){
       const definition=await db.collection<Doc>("achievement_definitions").findOne({_id:reward.achievement_id,active:true},{session});
@@ -256,6 +259,20 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
        await db.collection<Doc>("team_achievements").updateOne({team_id:assignment.target_id,achievement_id:reward.achievement_id},{$setOnInsert:{_id:randomUUID(),team_id:assignment.target_id,achievement_id:reward.achievement_id,status:"UNLOCKED",progress:{},unlocked_at:stamp,created_at:stamp,updated_at:stamp}},{upsert:true,session});
       }
       settlementStatus="GRANTED";
+     }
+     if(reward.type==="CP"||reward.type==="DDP"||reward.type==="TDP"){
+      let targetType: "PLAYER"|"TEAM"=assignment.target_type;
+      let targetId=String(assignment.target_id);
+      if(reward.type==="DDP"){targetType="PLAYER";targetId=actorId;}
+      if(reward.type==="TDP"){
+       targetType="TEAM";
+       const rewardTeam=assignment.target_type==="TEAM"?team:await db.collection<Doc>("teams").findOne({owner_player_id:actorId,status:"ACTIVE"},{session});
+       if(!rewardTeam)throw fail("TDP_TEAM_REQUIRED","A team is required to receive TDP.");
+       targetId=String(rewardTeam._id);
+      }
+      const settlement=await settleQuestRewardInSession(db,session,{seasonId:String(activeSeason?._id??""),assignmentId,rewardIndex,rewardType:reward.type,amount:reward.amount,targetType,targetId,actorId,eventId});
+      if(settlement.settled)settlementStatus="GRANTED";
+      else settlementStatus="PENDING_ECONOMY_APPROVAL";
      }
      granted.push({...reward,settlement_status:settlementStatus});
     }

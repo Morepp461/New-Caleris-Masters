@@ -44,6 +44,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
           <a href="#universe">THE UNIVERSE</a>
           <Link href="/teams">TEAMS</Link>
           <Link href="/quests">QUESTS</Link>
+          <Link href="/economy">ECONOMY</Link>
           <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>
