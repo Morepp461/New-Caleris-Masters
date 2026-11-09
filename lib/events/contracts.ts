@@ -1,0 +1,2 @@
+export type DomainEvent<T extends Record<string,unknown>=Record<string,unknown>>={_id:string;event_type:string;aggregate_type:string;aggregate_id:string;actor_id:string|null;payload_version:number;payload:T;correlation_id:string;idempotency_key:string;occurred_at:Date;recorded_at:Date};
+export type OutboxEvent<T extends Record<string,unknown>=Record<string,unknown>>={_id:string;event_id:string;event_type:string;payload:T;status:"PENDING"|"PROCESSING"|"PUBLISHED"|"FAILED";attempt_count:number;next_attempt_at:Date;published_at:Date|null;created_at:Date};
