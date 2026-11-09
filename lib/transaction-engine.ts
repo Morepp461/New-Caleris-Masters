@@ -33,7 +33,8 @@ export async function getAccountBalance(accountName: string, season?: number) {
   const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": ctx.canonicalName };
   if (season) filter["row_data.c9"] = String(season);
   const rows = await ctx.db.collection("admin_sheet_records").find(filter).toArray();
-  return rows.reduce((sum, item) => {
+  const opening = season ? await ctx.db.collection("opening_balances").findOne({season,account_name:ctx.canonicalName,account_type:ctx.type}) : null;
+  return Number(opening?.balance ?? 0) + rows.reduce((sum, item) => {
     const row = item.row_data ?? {};
     const n = amountOf(row.c6);
     return sum + (row.c3 === "Masuk" ? n : row.c3 === "Keluar" ? -n : 0);
