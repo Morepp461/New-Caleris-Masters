@@ -62,7 +62,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
  if(action==="CREATE_QUEST"){
   await requireOperator(principal);
   const parsed=validateQuestDefinition({name:body.name,description:body.description,questCategory:body.questCategory,difficulty:body.difficulty,roleEligibility:body.roleEligibility,requirements:body.requirements,rewards:body.rewards,cooldownSeconds:body.cooldownSeconds,repeatable:body.repeatable,recurrence:body.recurrence,expirySeconds:body.expirySeconds??null,evidenceRequired:body.evidenceRequired,rewardCaps:body.rewardCaps??{}});
-  if(!parsed.ok)throw new AppError(parsed.reason??"INVALID_QUEST","Quest definition does not match the approved schema.",400);
+  if(!parsed.ok||!parsed.value)throw new AppError(parsed.reason??"INVALID_QUEST","Quest definition does not match the approved schema.",400);
   const existing=await db.collection<Doc>("quests").find({name:parsed.value.name}).sort({version:-1}).limit(1).next();
   const id=randomUUID(),stamp=now(),version=Number(existing?.version??0)+1;
   await db.collection<Doc>("quests").insertOne({_id:id,...parsed.value,version,created_at:stamp,updated_at:stamp,created_by:actorId,updated_by:actorId});
