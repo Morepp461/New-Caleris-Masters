@@ -46,5 +46,5 @@ test("idempotency keys must be unique", () => {
   assert.throws(() => assertUniqueIdempotencyKeys([
     { idempotency_key: "event-1" },
     { idempotency_key: "event-1" },
-  ]), /Duplicate identifier/);
+  ]), /Duplicate idempotency key/);
 });
