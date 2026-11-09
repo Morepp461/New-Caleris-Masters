@@ -8,7 +8,7 @@ async function authorized(){return getCurrentAdmin();}
 export async function PATCH(request:NextRequest,{params}:{params:Promise<{sheet:string;id:string}>}){
  const admin=await authorized();if(!admin)return NextResponse.json({error:"Unauthorized"},{status:401});
  const {sheet,id}=await params;const definition=getAdminSheet(sheet);if(!definition)return NextResponse.json({error:"Sheet tidak ditemukan."},{status:404});
- if(definition.readOnly)return NextResponse.json({error:"Sheet ini bersifat read-only."},{status:403});
+ if(definition.readOnly||sheet==="transaksi")return NextResponse.json({error:sheet==="transaksi"?"Jurnal transaksi tidak boleh diedit atau dihapus. Buat transaksi koreksi melalui mesin transaksi.":"Sheet ini bersifat read-only."},{status:403});
  if(!ObjectId.isValid(id))return NextResponse.json({error:"ID tidak valid."},{status:400});
  const body=await request.json().catch(()=>null);if(!body||typeof body.row_data!=="object"||Array.isArray(body.row_data))return NextResponse.json({error:"Format data tidak valid."},{status:400});
  const allowed=new Set(definition.columns.map((_,i)=>`c${i}`).filter(key=>!definition.readonlyColumns?.includes(Number(key.slice(1)))));
