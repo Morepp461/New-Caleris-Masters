@@ -9,6 +9,7 @@ import { success } from "@/lib/server/response";
 import { readString, requireJsonObject } from "@/lib/server/validation";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
+import { isValidDiscordUserId } from "@/lib/identity/policy.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,7 +24,10 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   const playerId = readString(body.playerId, "playerId", { max: 64 });
   const discordUserId = readString(body.discordUserId, "discordUserId", { min: 17, max: 20 });
   const reason = readString(body.reason, "reason", { min: 3, max: 300 });
-  if (!/^\\d{17,20}$/.test(discordUserId)) throw new AppError("INVALID_DISCORD_ID", "Discord user ID must be a numeric snowflake.", 400);
+  if (!isValidDiscordUserId(discordUserId)) {
+    throw new AppError("INVALID_DISCORD_ID", "Discord user ID must be a numeric snowflake.", 400);
+  }
+
   const client = await getMongoClient();
   const db = await getMongoDatabase();
   const players = db.collection<StringIdDocument>("players");
