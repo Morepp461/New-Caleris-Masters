@@ -6,7 +6,40 @@ import { getMongoDatabase } from "@/lib/db/mongodb";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const COOKIE_NAME = process.env.NODE_ENV === "production" ? "__Host-caleris_session" : "caleris_session";
 
-type StringIdDocument = { _id: string; [key: string]: unknown };
+type SessionDocument = {
+  _id: string;
+  player_id: string;
+  auth_account_id: string;
+  provider_user_id: string;
+  session_token_hash: string;
+  status: string;
+  expires_at: Date;
+  last_seen_at: Date;
+  [key: string]: unknown;
+};
+type PlayerDocument = {
+  _id: string;
+  account_status: string;
+  active_role?: string;
+  display_name?: string;
+  avatar_url?: string;
+  is_operator?: boolean;
+  [key: string]: unknown;
+};
+type AuthAccountDocument = {
+  _id: string;
+  player_id: string;
+  provider_user_id: string;
+  provider_username?: string;
+  provider_avatar_url?: string;
+  [key: string]: unknown;
+};
+type RoleAssignmentDocument = {
+  _id: string;
+  role: string;
+  [key: string]: unknown;
+};
+type AuditLogDocument = { _id: string; [key: string]: unknown };
 
 export type SessionPrincipal = {
   playerId: string;
@@ -46,7 +79,7 @@ export async function createPlayerSession(input: {
   discordUserId: string;
 }) {
   const db = await getMongoDatabase();
-  const sessions = db.collection<StringIdDocument>("player_sessions");
+  const sessions = db.collection<SessionDocument>("player_sessions");
   const token = createOpaqueToken();
   const now = new Date();
   const sessionId = randomUUID();
@@ -75,9 +108,9 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
 
   const db = await getMongoDatabase();
   const sessions = db.collection<StringIdDocument>("player_sessions");
-  const players = db.collection<StringIdDocument>("players");
-  const accounts = db.collection<StringIdDocument>("auth_accounts");
-  const assignments = db.collection<StringIdDocument>("role_assignments");
+  const players = db.collection<PlayerDocument>("players");
+  const accounts = db.collection<AuthAccountDocument>("auth_accounts");
+  const assignments = db.collection<RoleAssignmentDocument>("role_assignments");
   const now = new Date();
   const session = await sessions.findOne({
     session_token_hash: hashOpaqueToken(token),
@@ -150,7 +183,7 @@ export async function writeAuthAudit(input: {
   reason?: string;
 }) {
   const db = await getMongoDatabase();
-  await db.collection<StringIdDocument>("audit_logs").insertOne({
+  await db.collection<AuditLogDocument>("audit_logs").insertOne({
     _id: randomUUID(),
     actor_type: input.actorType ?? "SYSTEM",
     ...(input.actorId ? { actor_id: input.actorId } : {}),
