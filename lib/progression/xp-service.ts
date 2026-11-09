@@ -16,6 +16,6 @@ export async function recordXpEvent(db:Db,session:ClientSession,input:{playerId:
   await events.insertOne({_id:randomUUID(),player_id:input.playerId,source_type:input.sourceType,source_id:input.sourceId,xp_amount:input.xpAmount,event_id:input.eventId,created_at:stamp,updated_at:stamp},{session});
   const rules=await db.collection<LevelRuleRecord>("account_level_rules").find({status:"ACTIVE"},{session}).sort({level:1}).toArray();
   const level=calculateAccountLevel(totalXp,rules);
-  await db.collection<PlayerRecord>("players").updateOne({_id:input.playerId,account_status:"ACTIVE"},{$inc:{total_xp:input.xpAmount,xp:input.xpAmount},$set:{level:level.level,updated_at:stamp}},{session});
+  await db.collection<PlayerRecord>("players").updateOne({_id:input.playerId,account_status:"ACTIVE"},{$set:{total_xp:totalXp,xp:Number(player.xp??player.total_xp??0)+input.xpAmount,level:level.level,updated_at:stamp}},{session});
   return {recorded:true,duplicate:false,totalXp,level:level.level,nextLevelXp:level.nextLevelXp};
 }
