@@ -23,7 +23,7 @@ const audit = async (db: Awaited<ReturnType<typeof getMongoDatabase>>, actorId: 
 export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const principal = await getSessionPrincipal(request); await requireOperator(principal);
   const db = await getMongoDatabase();
-  const [divisions, seasons, calendars, events, championships, rulesets, circuits, entries] = await Promise.all([
+  const [divisions, seasons, calendars, events, championships, rulesets, circuits, entries, circuitVersions] = await Promise.all([
     db.collection<Doc>("divisions").find({}).sort({ display_order: 1, tier: 1 }).toArray(),
     db.collection<Doc>("seasons").find({}).sort({ season_number: -1 }).toArray(),
     db.collection<Doc>("race_calendars").find({}).sort({ created_at: -1 }).limit(100).toArray(),
@@ -98,7 +98,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const divisionId = readString(body.divisionId, "divisionId", { max: 64 });
     const division = await divisions.findOne({ _id: divisionId });
     if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);
-    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection<Doc>("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection<Doc>("season_rulesets").findOne({ division_id: divisionId, status: "LOCKED" }), db.collection<Doc>("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);
+    const activeSeasons = await db.collection<Doc>("seasons").find({ status: { $in: ["PLANNED", "REGISTRATION", "ACTIVE"] } }, { projection: { _id: 1 } }).toArray();\n    const activeSeasonIds = activeSeasons.map((item) => item._id);\n    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection<Doc>("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection<Doc>("season_rulesets").findOne({ division_id: divisionId, season_id: { $in: activeSeasonIds }, status: "LOCKED" }), db.collection<Doc>("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);
     if (activeTeams || activeSeason || activeEvents) throw fail("DIVISION_IN_USE", "Division has active teams, locked regulations or open race events.");
     await divisions.updateOne({ _id: divisionId }, { $set: { status: "ARCHIVED", updated_at: now() } });
     await audit(db, actorId, "DIVISION_ARCHIVED", "DIVISION", divisionId, { status: division.status }, { status: "ARCHIVED" });
@@ -190,7 +190,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const calendarId = readString(body.calendarId, "calendarId", { max: 64 }), circuitId = readString(body.circuitId, "circuitId", { max: 64 }), circuitVersionId = readString(body.circuitVersionId, "circuitVersionId", { max: 64 });
     const roundNumber = Number(body.roundNumber), totalLaps = Number(body.totalLaps), raceFormat = readString(body.raceFormat, "raceFormat", { max: 24 }).toUpperCase(), scheduledStartAt = new Date(String(body.scheduledStartAt));
     if (!Number.isSafeInteger(roundNumber) || roundNumber < 1 || !Number.isSafeInteger(totalLaps) || totalLaps < 1 || Number.isNaN(scheduledStartAt.getTime())) throw new AppError("INVALID_EVENT_CONFIGURATION", "Round, laps and scheduled start must be valid.", 400);
-    const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: { $in: ["DRAFT", "ACTIVE"] } });
+    const calendar = await db.collection<Doc>("race_calendars").findOne({ _id: calendarId, status: "ACTIVE" });
     if (!calendar || roundNumber > Number(calendar.total_rounds)) throw fail("CALENDAR_NOT_AVAILABLE", "Calendar is unavailable or round exceeds configured rounds.");
     const [circuit, circuitVersion, ruleset] = await Promise.all([db.collection<Doc>("circuits").findOne({ _id: circuitId, status: "ACTIVE" }), db.collection<Doc>("circuit_versions").findOne({ _id: circuitVersionId, circuit_id: circuitId }), db.collection<Doc>("season_rulesets").findOne({ _id: calendar.ruleset_id, status: "LOCKED" })]);
     if (!circuit || !circuitVersion || !ruleset) throw fail("EVENT_REFERENCE_INVALID", "Circuit, circuit version or locked ruleset is invalid.");
