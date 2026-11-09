@@ -1,14 +1,13 @@
 import { AdminDashboard } from "@/components/admin-dashboard";
 import { requireAdmin } from "@/lib/admin-auth";
 import { ADMIN_SHEETS } from "@/lib/admin-sheets";
-
-export const dynamic = "force-dynamic";
-
-export default async function Home() {
- const {supabase,displayName}=await requireAdmin();
- const {data,error}=await (supabase as any).from("admin_sheet_records").select("sheet_key").limit(5000);
- const counts:Record<string,number>={};
- for(const sheet of ADMIN_SHEETS)counts[sheet.key]=0;
- if(!error)for(const row of data??[])counts[row.sheet_key]=(counts[row.sheet_key]??0)+1;
- return <AdminDashboard counts={counts} displayName={displayName??"Administrator"}/>;
+import { getDatabase } from "@/lib/mongodb";
+export const dynamic="force-dynamic";
+export default async function Home(){
+ const admin=await requireAdmin();
+ const db=await getDatabase();
+ const grouped=await db.collection("admin_sheet_records").aggregate([{$group:{_id:"$sheet_key",count:{$sum:1}}}]).toArray();
+ const counts:Record<string,number>={};for(const sheet of ADMIN_SHEETS)counts[sheet.key]=0;
+ for(const row of grouped)counts[String(row._id)]=Number(row.count);
+ return <AdminDashboard counts={counts} displayName={admin.displayName}/>;
 }
