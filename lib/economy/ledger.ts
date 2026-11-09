@@ -87,11 +87,20 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
   return withMongoTransaction(client, async (session) => {
     const source = await db.collection<Doc>("economy_accounts").findOne({ _id: input.accountId, owner_type: input.ownerType, owner_id: input.ownerId, currency: "CP", status: "ACTIVE" }, { session });
     if (!source) throw new AppError("OWNER_WALLET_NOT_FOUND", "The active CP wallet for this token owner was not found.", 404);
+    if (input.tokenType === "DDP") {
+      const player = await db.collection<Doc>("players").findOne({ _id: input.ownerId, account_status: "ACTIVE", active_role: "DRIVER' }, { session });
+      if (!player) throw new AppError("DDP_DRIVER_REQUIRED", "DDP purchases require an active Driver profile.", 403);
+    } else {
+      const team = await db.collection<Doc>("teams").findOne({ _id: input.ownerId, owner_player_id: input.actorId, status: "ACTIVE" }, { session });
+      if (!team) throw new AppError("TDP_TEAM_OWNER_REQUIRED", "TDP purchases require ownership of the active team.", 403);
+    }
     const ruleset = await db.collection<Doc>("economy_rulesets").findOne({ season_id: input.seasonId, status: "ACTIVE" }, { sort: { version: -1 }, session });
     const validation = validateEconomyRules(ruleset ?? {}) as { ok: boolean; value?: EconomyRules; reason?: string };
     if (!ruleset || !validation.ok || !validation.value?.token_purchase_rules.enabled) throw new AppError("TOKEN_PURCHASE_DISABLED", "Development token purchases are not enabled by an approved economy ruleset.", 403);
     const rule = validation.value!.token_purchase_rules, price = input.tokenType === "DDP" ? rule.ddp_price_minor : rule.tdp_price_minor;
     if (amount < Number(rule.minimum_purchase) || typeof price !== "number" || !Number.isSafeInteger(price) || price <= 0 || !rule.system_account_id) throw new AppError("TOKEN_PURCHASE_INVALID", "Token purchase does not satisfy the active pricing rules.", 400);
+    const treasury = await db.collection<Doc>("economy_accounts").findOne({ _id: rule.system_account_id, owner_type: "SYSTEM", currency: "CP", status: "ACTIVE" }, { session });
+    if (!treasury) throw new AppError("TOKEN_TREASURY_NOT_FOUND", "Configured token treasury must be an active system CP account.", 409);
     const cost = amount * Number(price);
     if (!Number.isSafeInteger(cost) || cost <= 0) throw new AppError("TOKEN_PRICE_OVERFLOW", "Configured token price exceeds supported integer range.", 400);
     const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
@@ -201,6 +210,8 @@ export async function issueTeamLoan(input: { teamId: string; teamAccountId: stri
     if (!ruleset || !validation.ok || !validation.value?.loan_rules.enabled) throw new AppError("LOANS_DISABLED", "Loans are disabled by the active economy ruleset.", 403);
     const rule = validation.value.loan_rules;
     if (amount > Number(rule.maximum_loan_minor) || !rule.system_account_id) throw new AppError("LOAN_LIMIT_EXCEEDED", "Requested loan exceeds the approved ruleset limit.", 400);
+    const bank = await db.collection<Doc>("economy_accounts").findOne({ _id: rule.system_account_id, owner_type: "SYSTEM", currency: "CP", status: "ACTIVE" }, { session });
+    if (!bank) throw new AppError("LOAN_BANK_NOT_FOUND", "Configured loan bank must be an active system CP account.", 409);
     const team = await db.collection<Doc>("teams").findOne({ _id: input.teamId, status: "ACTIVE" }, { session });
     const teamAccount = await db.collection<Doc>("economy_accounts").findOne({ _id: input.teamAccountId, owner_type: "TEAM", owner_id: input.teamId, currency: "CP", status: "ACTIVE" }, { session });
     if (!team || !teamAccount) throw new AppError("TEAM_WALLET_NOT_FOUND", "Active team and its CP wallet are required.", 404);
@@ -250,6 +261,8 @@ export async function settleQuestRewardInSession(db: Db, session: ClientSession,
   if (input.rewardType === "CP") {
     const rule = validation.value.quest_reward_rules;
     if (!rule?.enabled || !rule.system_account_id) return { settled: false, reason: "QUEST_REWARD_RULE_DISABLED" };
+    const treasury = await db.collection<Doc>("economy_accounts").findOne({ _id: rule.system_account_id, owner_type: "SYSTEM", currency: "CP", status: "ACTIVE" }, { session });
+    if (!treasury) return { settled: false, reason: "QUEST_REWARD_TREASURY_NOT_FOUND" };
     const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
     if (existing) return { settled: true, transactionId: existing._id, replayed: true };
     const recipient = await db.collection<Doc>("economy_accounts").findOneAndUpdate({ owner_type: input.targetType, owner_id: input.targetId, currency: "CP" }, { $setOnInsert: { _id: randomUUID(), owner_type: input.targetType, owner_id: input.targetId, currency: "CP", available_balance_minor: Long.ZERO, reserved_balance_minor: Long.ZERO, version: Long.fromInt(1), status: "ACTIVE", created_at: now(), updated_at: now() } }, { upsert: true, returnDocument: "after", session });
@@ -260,6 +273,8 @@ export async function settleQuestRewardInSession(db: Db, session: ClientSession,
   if (!rule?.enabled) return { settled: false, reason: "DEVELOPMENT_REWARD_RULE_DISABLED" };
   const ownerType = input.rewardType === "DDP" ? "PLAYER" : "TEAM";
   if ((input.rewardType === "DDP" && input.targetType !== "PLAYER") || (input.rewardType === "TDP" && input.targetType !== "TEAM")) return { settled: false, reason: "TOKEN_REWARD_TARGET_MISMATCH" };
+  if (input.rewardType === "DDP" && !await db.collection<Doc>("players").findOne({ _id: input.targetId, account_status: "ACTIVE", active_role: "DRIVER" }, { session })) return { settled: false, reason: "DDP_DRIVER_REQUIRED" };
+  if (input.rewardType === "TDP" && !await db.collection<Doc>("teams").findOne({ _id: input.targetId, status: "ACTIVE" }, { session })) return { settled: false, reason: "TDP_ACTIVE_TEAM_REQUIRED" };
   const prior = await db.collection<Doc>("development_transactions").findOne({ idempotency_key: key }, { session });
   if (prior) return { settled: true, transactionId: prior._id, replayed: true };
   const wallet = await db.collection<Doc>("development_wallets").findOneAndUpdate({ owner_type: ownerType, owner_id: input.targetId, token_type: input.rewardType }, { $setOnInsert: { _id: randomUUID(), owner_type: ownerType, owner_id: input.targetId, token_type: input.rewardType, balance: Long.ZERO, version: Long.fromInt(0), created_at: now(), updated_at: now() } }, { upsert: true, returnDocument: "after", session });
