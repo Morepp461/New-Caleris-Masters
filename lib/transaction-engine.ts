@@ -30,7 +30,7 @@ async function resolveAccount(accountName: string) {
 
 export async function getAccountBalance(accountName: string, season?: number) {
   const ctx = await resolveAccount(accountName);
-  const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": ctx.canonicalName };
+  const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": ctx.canonicalName, voided: { $ne: true } };
   if (season) filter["row_data.c9"] = String(season);
   const rows = await ctx.db.collection("admin_sheet_records").find(filter).toArray();
   const opening = season ? await ctx.db.collection("opening_balances").findOne({season,account_name:ctx.canonicalName,account_type:ctx.type}) : null;
@@ -75,7 +75,7 @@ export async function postLedgerEntry(input: LedgerInput, adminId: string) {
 
   const records = ctx.db.collection("admin_sheet_records");
   if (ctx.type === "team" && input.direction === "Keluar") {
-    const rows = await records.find({ sheet_key: "transaksi", "row_data.c2": ctx.canonicalName, "row_data.c9": String(input.season) }).toArray();
+    const rows = await records.find({ sheet_key: "transaksi", "row_data.c2": ctx.canonicalName, "row_data.c9": String(input.season), voided: { $ne: true } }).toArray();
     let income = 0, expenses = 0;
     for (const doc of rows) {
       const row = doc.row_data ?? {};
