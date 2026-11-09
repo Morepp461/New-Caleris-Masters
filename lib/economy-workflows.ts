@@ -277,7 +277,9 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");
         if(!owner)throw new Error("Owner aktif tidak ditemukan.");
         const fee=money(input.amount??rules.teamRegistrationFees[division]),roleFee=money(input.ownerRoleFee??rules.roleUpgradeFees.Owner??0),total=fee+roleFee;
-        const ownerCurrentTeam=String(owner.row_data?.c2??"");\n        const ownerChargeAccount=ownerCurrentTeam&&teams.some(x=>String(x.row_data?.c0??"")===ownerCurrentTeam)?team(ownerCurrentTeam):driver(ownerName);\n        await add(ownerChargeAccount,"Keluar","Registrasi Tim",total,"Registrasi "+name+" ("+division+") dan biaya role Owner");
+        const ownerCurrentTeam=String(owner.row_data?.c2??"");
+        const ownerChargeAccount=ownerCurrentTeam&&teams.some(x=>String(x.row_data?.c0??"")===ownerCurrentTeam)?team(ownerCurrentTeam):driver(ownerName);
+        await add(ownerChargeAccount,"Keluar","Registrasi Tim",total,"Registrasi "+name+" ("+division+") dan biaya role Owner");
         await add(bank,"Masuk","Registrasi Tim",total,"Biaya registrasi tim "+name);
         await db.collection("admin_sheet_records").insertOne({sheet_key:"data-tim",row_data:{c0:name,c1:new ObjectId().toString(),c2:division,c3:engineName,c4:new Date().toISOString().slice(0,10),c5:"Aktif",c6:ownerName,c7:"",c8:"",c9:"1",c10:"0",c11:"",c12:"",c13:"Tidak"},sort_order:Date.now(),created_by:adminId,created_at:new Date()},{session});
         await db.collection("admin_sheet_records").updateOne({_id:owner._id},{$set:{"row_data.c2":name,updated_at:new Date(),updated_by:adminId}},{session});
@@ -296,7 +298,8 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(oldRole===newRole)throw new Error("Anggota sudah memiliki role tersebut.");
         const fee=money(input.amount??rules.roleUpgradeFees[newRole]??0);
         if(fee<=0)throw new Error("Biaya upgrade role belum dikonfigurasi.");
-        const chargeAccount:Account=oldRole==="Owner"&&String(member.row_data?.c2??"")?team(String(member.row_data.c2)):driver(memberName);\n        await add(chargeAccount,"Keluar","Upgrade Role",fee,"Upgrade role "+oldRole+" ke "+newRole);
+        const chargeAccount:Account=oldRole==="Owner"&&String(member.row_data?.c2??"")?team(String(member.row_data.c2)):driver(memberName);
+        await add(chargeAccount,"Keluar","Upgrade Role",fee,"Upgrade role "+oldRole+" ke "+newRole);
         await add(bank,"Masuk","Upgrade Role",fee,"Biaya upgrade role "+memberName);
         await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c3":newRole,updated_at:new Date(),updated_by:adminId}},{session});
         result={...result,member:memberName,oldRole,newRole,fee};
