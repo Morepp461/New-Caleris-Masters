@@ -7,6 +7,7 @@ export type CalerisRuleset = {
   currency: string;
   balancingEveryRaces: number;
   periodsPerSeason: number;
+  bankOpeningBalance: number;
   teamExpenseLimitRate: number;
   transferTax: { enabled: boolean; threshold: number; rate: number };
   wealthTax: { enabled: boolean; individualThreshold: number; teamThreshold: number; rate: number };
@@ -27,6 +28,7 @@ export const DEFAULT_RULESET: Omit<CalerisRuleset, "season" | "name" | "status">
   currency: "¢p",
   balancingEveryRaces: 5,
   periodsPerSeason: 4,
+  bankOpeningBalance: 999999999,
   teamExpenseLimitRate: 0.8,
   transferTax: { enabled: true, threshold: 50000, rate: 0.1 },
   wealthTax: { enabled: true, individualThreshold: 150000, teamThreshold: 300000, rate: 0.1 },
@@ -80,7 +82,7 @@ export function validateRuleset(input: unknown): asserts input is CalerisRuleset
   if (!input || typeof input !== "object") throw new Error("Ruleset tidak valid.");
   const r = input as CalerisRuleset;
   const numeric = [
-    r.season, r.balancingEveryRaces, r.periodsPerSeason, r.teamExpenseLimitRate,
+    r.season, r.balancingEveryRaces, r.periodsPerSeason, r.bankOpeningBalance, r.teamExpenseLimitRate,
     r.transferTax?.threshold, r.transferTax?.rate, r.wealthTax?.individualThreshold,
     r.wealthTax?.teamThreshold, r.wealthTax?.rate, r.inactive?.driverBalanceCutRate,
     r.inactive?.driverLicenseDeduction, r.inactive?.teamFine, r.loans?.eligibilityBalanceBelow,
