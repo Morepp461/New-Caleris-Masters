@@ -1,3 +1,5 @@
+import FIELD_SCHEMA_CATALOG from "./field-schema-catalog.json" with { type: "json" };
+
 export const DOMAIN_COLLECTIONS = [
   "players", "auth_accounts", "role_assignments", "permissions",
   "role_permission_policies", "player_sessions",
@@ -104,9 +106,52 @@ export const MIGRATION_ID_BASELINE_VALIDATOR = {
   },
 };
 
+const BSON_TYPE_CODES = {
+  s: "string",
+  i: "int",
+  l: "long",
+  d: "decimal",
+  b: "bool",
+  t: "date",
+  o: "object",
+  a: "array",
+  x: "objectId",
+};
+
+function buildCollectionValidator(collectionName) {
+  const spec = FIELD_SCHEMA_CATALOG[collectionName];
+  if (!spec) {
+    return collectionName === "game_settings"
+      ? NATURAL_KEY_BASELINE_VALIDATOR
+      : UUID_BASELINE_VALIDATOR;
+  }
+
+  const properties = {
+    _id: collectionName === "game_settings"
+      ? NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id
+      : UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id,
+  };
+
+  for (const [typeCode, fields] of Object.entries(spec.t)) {
+    const nullable = typeCode.endsWith("?");
+    const bsonType = BSON_TYPE_CODES[nullable ? typeCode.slice(0, -1) : typeCode];
+    if (!bsonType) throw new Error(`Unknown BSON type code "${typeCode}" in ${collectionName}.`);
+
+    for (const field of fields) {
+      properties[field] = { bsonType: nullable ? [bsonType, "null"] : bsonType };
+    }
+  }
+
+  return {
+    $jsonSchema: {
+      bsonType: "object",
+      required: spec.r.split(" "),
+      properties,
+      additionalProperties: true,
+    },
+  };
+}
+
 export const COLLECTION_VALIDATORS = Object.fromEntries(
-  DOMAIN_COLLECTIONS.map((name) => [
-    name,
-    name === "game_settings" ? NATURAL_KEY_BASELINE_VALIDATOR : UUID_BASELINE_VALIDATOR,
-  ]),
+  DOMAIN_COLLECTIONS.map((name) => [name, buildCollectionValidator(name)]),
 );
