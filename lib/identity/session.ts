@@ -87,7 +87,7 @@ export async function getSessionPrincipal(request: NextRequest): Promise<Session
       player_id: session.player_id,
       provider: "discord",
       provider_user_id: session.provider_user_id,
-      status: { $ne: "REVOKED" },
+      status: "ACTIVE",
     }),
   ]);
   if (!player || !account || player.account_status !== "ACTIVE") return null;
