@@ -183,7 +183,9 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   if(!quest.role_eligibility.includes(player.active_role)|| (assignment.target_type==="TEAM"&&player.active_role!=="TEAM_OWNER"))throw new AppError("QUEST_INELIGIBLE","Your current role is not eligible to claim this reward.",403);
   const decision=canClaimAssignment({status:String(assignment.status),expiresAt:assignment.expires_at??null,evidenceRequired:Boolean(quest.evidence_required),evidenceVerified:Boolean(progress.evidence_verified)});
   if(!decision.ok)throw fail(decision.reason??"CLAIM_BLOCKED","Quest reward cannot be claimed.");
-  const rewards=normalizeRewardGrant(quest.rewards?.items??[]);
+  const configuredRewards=normalizeRewardGrant(quest.rewards?.items??[]);
+  const rewards=configuredRewards.filter(reward=>!Array.isArray(reward.eligible_roles)||reward.eligible_roles.includes(player.active_role));
+  if(rewards.length===0)throw fail("NO_ELIGIBLE_REWARDS","No reward in this quest is eligible for your current role.");
   for(const reward of rewards){
    const cap=Number(quest.reward_caps?.[reward.type]??0);
    if(cap>0&&reward.amount>cap)throw fail("REWARD_CAP_EXCEEDED","Configured per-claim reward cap would be exceeded.");
