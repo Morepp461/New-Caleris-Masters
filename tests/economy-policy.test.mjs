@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { assertBalancedPostings, calculateWalletBalance, canPostMoneyTransfer, defaultEconomyRules, validateEconomyRules, validateIdempotencyKey, toMinorUnits } from "../lib/economy/policy.mjs";
+import { assertBalancedPostings, calculateWalletBalance, canPostMoneyTransfer, defaultEconomyRules, validateEconomyRules, validateIdempotencyKey, toMinorUnits, sameIdempotentTransfer, assertBalanceProjectionMatches, canApplyVersionedDebit } from "../lib/economy/policy.mjs";
 
 test("double-entry postings balance per currency", () => {
   assert.deepEqual(assertBalancedPostings([{ direction: "CREDIT", amountMinor: 12500, currency: "CP" }, { direction: "DEBIT", amountMinor: 12500, currency: "CP" }]), { debitTotalMinor: "12500", creditTotalMinor: "12500", currency: "CP" });
@@ -45,4 +45,28 @@ test("loan rules require explicit limits and block unimplemented interest accrua
   const approvedPrincipalOnly = { enabled: true, system_account_id: "123e4567-e89b-42d3-a456-426614174000", maximum_loan_minor: 100000, eligibility_balance_minor: 5000, due_days: 30, interest_rate_bps: 0 };
   assert.equal(validateEconomyRules({ ...defaults, loan_rules: approvedPrincipalOnly }).ok, true);
   assert.equal(validateEconomyRules({ ...defaults, loan_rules: { ...approvedPrincipalOnly, interest_rate_bps: 500 } }).reason, "INTEREST_ACCRUAL_RULE_NOT_APPROVED_OR_IMPLEMENTED");
+});
+
+test("idempotent payout replay accepts only the exact same immutable transfer", () => {
+  const existing = { source_account_id: "source", destination_account_id: "destination", amount_minor: "2500", category: "SALARY", currency: "CP", reason: "Approved salary payment" };
+  assert.equal(sameIdempotentTransfer(existing, { sourceAccountId: "source", destinationAccountId: "destination", amountMinor: 2500, category: "SALARY", currency: "CP", reason: "Approved salary payment" }), true);
+  assert.equal(sameIdempotentTransfer(existing, { sourceAccountId: "source", destinationAccountId: "destination", amountMinor: 2500, category: "PRIZE", currency: "CP", reason: "Approved salary payment" }), false);
+});
+test("concurrent versioned spending cannot overdraw a wallet", async () => {
+  const wallet = { balance: 100, version: 7 };
+  const expectedVersion = wallet.version;
+  const attempts = await Promise.all(Array.from({ length: 8 }, async () => {
+    await Promise.resolve();
+    if (!canApplyVersionedDebit({ expectedVersion, actualVersion: wallet.version, balance: wallet.balance, amount: 30 })) return false;
+    wallet.balance -= 30;
+    wallet.version += 1;
+    return true;
+  }));
+  assert.equal(attempts.filter(Boolean).length, 1);
+  assert.equal(wallet.balance, 70);
+  assert.ok(wallet.balance >= 0);
+});
+test("period reconciliation blocks a cached balance that differs from ledger", () => {
+  assert.equal(assertBalanceProjectionMatches("650", 650), true);
+  assert.throws(() => assertBalanceProjectionMatches("650", 649), /projection mismatch/);
 });
