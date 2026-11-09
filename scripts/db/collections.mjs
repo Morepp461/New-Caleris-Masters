@@ -64,6 +64,8 @@ export const INDEXES = [
   ["sponsor_negotiations", "ix_sponsor_negotiations_offer", classic({ offer_id: 1 })],
   ["sponsor_contracts", "ix_sponsor_contracts_team_status", classic({ team_id: 1, status: 1 })],
   ["sponsor_payouts", "ix_sponsor_payouts_contract_status", classic({ contract_id: 1, status: 1 })],
+  ["player_achievements", "uq_player_achievements_player_achievement", classic({ player_id: 1, achievement_id: 1 }, { unique: true })],
+  ["team_achievements", "uq_team_achievements_team_achievement", classic({ team_id: 1, achievement_id: 1 }, { unique: true })],
   ["game_events", "uq_game_events_idempotency", classic({ idempotency_key: 1 }, { unique: true })],
   ["outbox_events", "ix_outbox_events_status_attempt", classic({ status: 1, next_attempt_at: 1 })],
   ["audit_logs", "ix_audit_logs_target_created", classic({ target_type: 1, target_id: 1, created_at: 1 })],
