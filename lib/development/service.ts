@@ -49,6 +49,7 @@ export async function upgradeAttribute(input:{ownerType:"PLAYER"|"TEAM";ownerId:
   if(!season)throw new AppError("ACTIVE_SEASON_REQUIRED","An active season is required for development.",409);
   const rules=await db.collection<Doc>("development_rulesets").findOne({season_id:season._id,status:"ACTIVE",enabled:true},{session});
   if(!rules)throw new AppError("DEVELOPMENT_RULESET_NOT_ACTIVE","This season has no active development ruleset.",409);
+  if(input.ownerType==="PLAYER"&&!await db.collection<Doc>("players").findOne({_id:input.ownerId,account_status:"ACTIVE",active_role:"DRIVER"},{session}))throw new AppError("ACTIVE_DRIVER_REQUIRED","An active Driver role is required to upgrade Driver attributes.",403);
   const collection=input.ownerType==="PLAYER"?"driver_profiles":"teams";
   const owner=input.ownerType==="PLAYER"?await db.collection<Doc>(collection).findOne({player_id:input.ownerId,profile_status:"ACTIVE"},{session}):await db.collection<Doc>(collection).findOne({_id:input.ownerId,status:"ACTIVE"},{session});
   if(!owner)throw new AppError("DEVELOPMENT_OWNER_NOT_FOUND","Active development owner not found.",404);
