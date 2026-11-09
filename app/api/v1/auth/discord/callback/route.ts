@@ -34,7 +34,12 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   if (!stateValid || !code) return redirect("oauth-denied");
 
-  const profile = await exchangeDiscordCode(code);
+  let profile;
+  try {
+    profile = await exchangeDiscordCode(code);
+  } catch {
+    return redirect("oauth-failed");
+  }
   const db = await getMongoDatabase();
   const account = await db.collection("auth_accounts").findOne({
     provider: "discord",
