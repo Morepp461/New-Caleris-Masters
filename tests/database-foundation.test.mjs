@@ -13,7 +13,7 @@ test("domain collection catalog matches the supplied data dictionary", () => {
 });
 
 test("all source-backed custom indexes are represented once", () => {
-  assert.equal(INDEXES.length, 40);
+  assert.equal(INDEXES.length, 42);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {
@@ -82,7 +82,7 @@ test("index names are unique per collection", () => {
 });
 
 test("source-defined field schemas cover all collections with dictionary tables", () => {
-  assert.equal(Object.keys(FIELD_SCHEMA_CATALOG).length, 57);
+  assert.equal(Object.keys(FIELD_SCHEMA_CATALOG).length, 58);
   assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
   assert.deepEqual(COLLECTION_VALIDATORS.players.$jsonSchema.required, [
     "_id", "username", "display_name", "active_role", "account_status",
@@ -107,4 +107,16 @@ test("superseded non-unique race round index is explicitly retired", () => {
   assert.deepEqual(LEGACY_INDEXES_TO_DROP, [
     ["race_events", "ix_race_events_season_division_round"],
   ]);
+});
+
+test("player and team achievements have unique participant-definition pairs", () => {
+  const player = INDEXES.find(([, name]) => name === "uq_player_achievements_player_achievement");
+  const team = INDEXES.find(([, name]) => name === "uq_team_achievements_team_achievement");
+  assert.ok(player);
+  assert.ok(team);
+  assert.deepEqual(player[2].keys, { player_id: 1, achievement_id: 1 });
+  assert.deepEqual(team[2].keys, { team_id: 1, achievement_id: 1 });
+  assert.equal(player[2].unique, true);
+  assert.equal(team[2].unique, true);
+  assert.deepEqual(COLLECTION_VALIDATORS.team_achievements.$jsonSchema.properties.team_id, { bsonType: "string" });
 });
