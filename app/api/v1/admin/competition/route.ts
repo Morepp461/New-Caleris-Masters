@@ -194,7 +194,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const [season, division] = await Promise.all([seasons.findOne({ _id: ruleset.season_id }), divisions.findOne({ _id: ruleset.division_id, status: { $ne: "ARCHIVED" } })]);
     if (!season || !division || ["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("RULESET_SCOPE_CLOSED", "Ruleset scope is not available.");
     await db.collection<Doc>("season_rulesets").updateOne({ _id: rulesetId, status: "DRAFT" }, { $set: { status: "LOCKED", approved_by: actorId, approved_at: now(), updated_at: now() } });
-    await db.collection<Doc>("race_calendars").updateMany({ season_id: ruleset.season_id, division_id: ruleset.division_id, status: "ACTIVE" }, { $set: { ruleset_id: rulesetId, updated_at: now() } });
+    await db.collection<Doc>("race_calendars").updateMany({ season_id: ruleset.season_id, division_id: ruleset.division_id, status: { $in: ["DRAFT", "ACTIVE"] } }, { $set: { ruleset_id: rulesetId, updated_at: now() } });
     await audit(db, actorId, "RULESET_LOCKED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { status: "LOCKED" });
     return success({ rulesetId, status: "LOCKED" }, meta);
   }
