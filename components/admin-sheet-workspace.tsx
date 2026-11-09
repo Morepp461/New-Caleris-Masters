@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Search, Save, Trash2, X, RefreshCw, LockKeyhole, FileSpreadsheet } from "lucide-react";
 import type { AdminSheet } from "@/lib/admin-sheets";
+import { AdminMobileNav } from "@/components/admin-mobile-nav";
+import { AdminRacingBackground } from "@/components/admin-racing-background";
 
 type RecordItem={id:string;row_data:Record<string,unknown>;created_at:string;updated_at:string};
 export function AdminSheetWorkspace({sheet}:{sheet:AdminSheet}) {
@@ -24,9 +26,9 @@ export function AdminSheetWorkspace({sheet}:{sheet:AdminSheet}) {
  const save=async()=>{setSaving(true);setError("");try{const payload={row_data:Object.fromEntries(fields.map(f=>[f.key,form[f.key]??""]))};const res=await fetch(`/api/admin/sheets/${sheet.slug}${editing?`/${editing.id}`:""}`,{method:editing?"PATCH":"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(payload)});const json=await res.json();if(!res.ok)throw new Error(json.error??"Gagal menyimpan");setEditing(null);setForm({});setModalOpen(false);await fetchRows();}catch(e){setError(e instanceof Error?e.message:"Gagal menyimpan data");}finally{setSaving(false);}};
  const remove=async(row:RecordItem)=>{if(!window.confirm("Hapus baris ini? Tindakan ini tidak dapat dibatalkan."))return;setError("");try{const res=await fetch(`/api/admin/sheets/${sheet.slug}/${row.id}`,{method:"DELETE"});const json=await res.json();if(!res.ok)throw new Error(json.error??"Gagal menghapus");await fetchRows();}catch(e){setError(e instanceof Error?e.message:"Gagal menghapus data");}};
  const displayValue=(row:RecordItem,index:number)=>{const value=row.row_data[`c${index}`];return value===null||value===undefined||value===""?"—":String(value);};
- return <main className="admin-shell">
+ return <main className="admin-shell"><AdminRacingBackground/>
   <aside className="admin-sidebar"><Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link><div className="admin-sidebar-label">WORKSPACE</div><Link href="/" className="admin-side-active"><span className="side-active-icon"><ArrowLeft size={17}/></span><span><b>Dashboard Admin</b><small>Kembali ke seluruh sheet</small></span></Link><div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">A</span><span><b>Administrator</b><small>System Administrator</small></span></div><div className="admin-version">RESTRICTED SHEET ACCESS</div></div></aside>
-  <section className="admin-main"><header className="admin-topbar"><div className="admin-breadcrumb"><Link href="/">DASHBOARD ADMIN</Link><span>/</span><b>{sheet.name.toUpperCase()}</b></div><span className="admin-secure"><i/> ADMIN SESSION</span></header>
+  <section className="admin-main"><header className="admin-topbar"><AdminMobileNav/><div className="admin-breadcrumb"><Link href="/">DASHBOARD ADMIN</Link><span>/</span><b>{sheet.name.toUpperCase()}</b></div><span className="admin-secure"><i/> ADMIN SESSION</span></header>
    <div className="admin-content">
     <div className="sheet-back-row"><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Semua modul</Link><span className="sheet-access"><LockKeyhole size={13}/> ADMIN ONLY</span></div>
     <section className="sheet-heading"><div><div className="admin-eyebrow">WORKBOOK SHEET / {sheet.group}</div><h1>{sheet.name.toUpperCase()}</h1><p>{sheet.description}</p></div><div className="sheet-heading-icon"><FileSpreadsheet size={24}/></div></section>
