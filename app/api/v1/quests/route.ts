@@ -121,6 +121,20 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   await audit(db,actorId,"QUEST_EVIDENCE_"+decision,assignmentId,{note:body.note??null});
   return success({assignmentId,status:approved?"COMPLETED":"REJECTED"},meta);
  }
+ if(action==="UPSERT_LEVEL_RULE"){
+  await requireOperator(principal);
+  const level=Number(body.level),requiredTotalXp=Number(body.requiredTotalXp);
+  if(!Number.isSafeInteger(level)||level<1||!Number.isSafeInteger(requiredTotalXp)||requiredTotalXp<0)throw new AppError("INVALID_LEVEL_RULE","Level and XP threshold must be non-negative integers.",400);
+  const active=await db.collection<Doc>("account_level_rules").find({status:"ACTIVE"}).sort({level:1}).toArray();
+  const lower=active.filter(r=>Number(r.level)<level).at(-1),higher=active.find(r=>Number(r.level)>level);
+  if((lower&&requiredTotalXp<=Number(lower.required_total_xp))||(higher&&requiredTotalXp>=Number(higher.required_total_xp)))throw fail("NON_MONOTONIC_LEVEL_THRESHOLD","XP thresholds must increase strictly with each level.");
+  const previous=active.find(r=>Number(r.level)===level),version=Number(previous?.version??0)+1,stamp=now(),id=randomUUID();
+  if(previous)await db.collection<Doc>("account_level_rules").updateOne({_id:previous._id,status:"ACTIVE"},{$set:{status:"INACTIVE",updated_at:stamp}});
+  const unlocks=Array.isArray(body.unlocks)?body.unlocks.filter((v:any)=>typeof v==="string").slice(0,50):[];
+  await db.collection<Doc>("account_level_rules").insertOne({_id:id,level,required_total_xp:requiredTotalXp,unlocks,status:"ACTIVE",version,created_at:stamp,updated_at:stamp,updated_by:actorId});
+  await audit(db,actorId,"ACCOUNT_LEVEL_RULE_UPSERTED",id,{level,requiredTotalXp,version});
+  return success({ruleId:id,level,version},meta,201);
+ }
  if(action==="CLAIM_REWARD"){
   const assignmentId=readString(body.assignmentId,"assignmentId",{max:64});
   const assignment=await db.collection<Doc>("quest_assignments").findOne({_id:assignmentId,status:"COMPLETED"});
