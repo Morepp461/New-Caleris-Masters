@@ -24,6 +24,7 @@ const document = {
     "/auth/session": { get: { summary: "Read current session", security: [{ sessionCookie: [] }], responses: { "200": { description: "Session identity." }, "401": { description: "No active session." } } } },
     "/auth/logout": { post: { summary: "Revoke current session", security: [{ sessionCookie: [] }], responses: { "200": { description: "Session revoked." }, "403": { description: "Invalid request origin." } } } },
     "/admin/identity/links": { post: { summary: "Operator provisions Discord identity for an existing player", security: [{ sessionCookie: [] }], responses: { "201": { description: "Identity mapping created." }, "403": { description: "Operator permission required." } } } },
+    "/admin/identity/links/{authAccountId}": { delete: { summary: "Operator revokes Discord identity and active sessions", security: [{ sessionCookie: [] }], parameters: [{ name: "authAccountId", in: "path", required: true, schema: { type: "string" } }], responses: { "200": { description: "Identity link and sessions revoked." }, "403": { description: "Operator permission required." } } } },
     "/admin/identity/roles": { post: { summary: "Operator assigns a game role to an existing player", security: [{ sessionCookie: [] }], responses: { "201": { description: "Role assignment created." }, "403": { description: "Operator permission required." } } } },
   },
 };
