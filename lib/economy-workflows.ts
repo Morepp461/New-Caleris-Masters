@@ -364,6 +364,26 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         await add(bank,"Keluar",rewardType,amount,"Reward "+memberName+" tanggal "+day);
         await add(driver(memberName),"Masuk",rewardType,amount,"Reward aktivitas Driver");
         result={...result,member:memberName,rewardType,amount,date:day};
+      } else if(action==="license_activity"){
+        const memberName=String(input.memberName??"").trim(),activity=String(input.activityType??""),eventId=String(input.eventId??"").trim();
+        if(!memberName||!eventId)throw new Error("Nama Driver dan ID aktivitas unik wajib diisi.");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+        const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===memberName.toLowerCase()&&String(x.row_data?.c3??"")==="Driver");
+        if(!member)throw new Error("Aktivitas lisensi hanya berlaku untuk Driver aktif.");
+        if(await db.collection("license_activity").findOne({event_id:eventId,member_name:memberName},{session}))throw new Error("Aktivitas lisensi dengan ID ini sudah dicatat.");
+        const scoreDoc=await db.collection("license_scores").findOne({member_name:memberName,season:input.season},{session});
+        let points=0,reason=activity;
+        if(activity==="daily_checkin"||activity==="after_race_poster")points=1;
+        else if(activity==="standings_points"){const standings=money(input.standingsPoints??0);points=standings>=250?30:standings>=150?15:standings>=80?10:0;reason="Klasemen "+standings+" poin";}
+        else if(activity==="wdc")points=35;
+        else if(activity==="inactive"||activity==="timeout_week")points=-10;
+        else throw new Error("Jenis aktivitas lisensi tidak dikenal.");
+        const next=Math.max(0,Number(scoreDoc?.score??0)+points);
+        const license=next>=85?"Super License":next>=60?"Gold License":next>=40?"Silver License":"Bronze License";
+        await db.collection("license_activity").insertOne({event_id:eventId,member_name:memberName,season:input.season,period:input.period,activity:reason,points,created_by:adminId,created_at:new Date()},{session});
+        await db.collection("license_scores").updateOne({member_name:memberName,season:input.season},{$set:{score:next,license,updated_at:new Date(),updated_by:adminId},$setOnInsert:{member_name:memberName,season:input.season,created_at:new Date()}},{upsert:true,session});
+        await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c11":license,updated_at:new Date(),updated_by:adminId}},{session});
+        result={...result,member:memberName,activity:reason,points,score:next,license};
       } else if(action==="manual_pair"){
         const fromType=input.fromType==="bank"?"bank":input.fromType==="team"?"team":"individual";
         const toType=input.toType==="bank"?"bank":input.toType==="team"?"team":"individual";
