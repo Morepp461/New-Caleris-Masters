@@ -22,6 +22,10 @@ export const DOMAIN_COLLECTIONS = [
 
 const classic = (keys, options = {}) => ({ keys, ...options });
 
+export const LEGACY_INDEXES_TO_DROP = [
+  ["race_events", "ix_race_events_season_division_round"],
+];
+
 export const INDEXES = [
   ["players", "uq_players_username", classic({ username: 1 }, { unique: true })],
   ["players", "ix_players_active_role", classic({ active_role: 1 })],
