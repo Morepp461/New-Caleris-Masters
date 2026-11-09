@@ -96,7 +96,7 @@ test("source-defined field schemas cover all collections with dictionary tables"
 
 test("collections without field tables retain identifier-only baseline validators", () => {
   for (const name of [
-    "player_sessions", "team_facilities", "team_achievements",
+    "player_sessions", "team_facilities",
     "operator_actions", "system_jobs", "system_health_logs",
   ]) {
     assert.equal(COLLECTION_VALIDATORS[name].$jsonSchema.required[0], "_id");
