@@ -8,11 +8,12 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow, evaluateRequirements } from "@/lib/progression/policy.mjs";
+import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow, evaluateRequirements, calculateAccountLevel } from "@/lib/progression/policy.mjs";
 import { recordXpEvent } from "@/lib/progression/xp-service";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc={_id:string;[key:string]:any};
 const fail=(code:string,message:string,status=409)=>new AppError(code,message,status);
 const now=()=>new Date();
@@ -26,9 +27,10 @@ export const GET=apiHandler(async(request:NextRequest,_context,meta)=>{
   const [quests,assignments,levels,progress]=await Promise.all([
    db.collection<Doc>("quests").find({}).sort({created_at:-1}).limit(200).toArray(),
    db.collection<Doc>("quest_assignments").find({}).sort({assigned_at:-1}).limit(200).toArray(),
-   db.collection<Doc>("account_level_rules").find({}).sort({level:1,version:-1}).limit(200).toArray()
+   db.collection<Doc>("account_level_rules").find({}).sort({level:1,version:-1}).limit(200).toArray(),
+   db.collection<Doc>("quest_progress").find({}).sort({updated_at:-1}).limit(200).toArray()
   ]);
-  return success({operator:true,quests,assignments,levels},meta);
+  return success({operator:true,quests,assignments,levels,progress},meta);
  }
  const player=await db.collection<Doc>("players").findOne({_id:principal.playerId,account_status:"ACTIVE"});
  if(!player)throw new AppError("PLAYER_NOT_FOUND","Active player profile was not found.",404);
@@ -128,7 +130,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   const idempotency=readString(body.idempotencyKey,"idempotencyKey",{min:8,max:128});
   if(progress?.last_submission_key===idempotency)return success({submitted:true,status:assignment.status},meta);
   const stamp=now();
-  await db.collection<Doc>("quest_progress").updateOne({assignment_id:assignmentId},{$set:{current_progress:current,evidence:evidence.map((e:any)=>({type:String(e.type??"OTHER").slice(0,24),reference:String(e.reference??"").slice(0,500),submitted_at:stamp})),evidence_verified:false,completion_status:"REVIEW_REQUIRED",last_submission_key:idempotency,updated_at:stamp}});
+  await db.collection<Doc>("quest_progress").updateOne({assignment_id:assignmentId},{$set:{current_progress:current,evidence:evidence.map((e:unknown)=>{const item=e&&typeof e==="object"?e as Record<string,unknown>:{};return {type:String(item.type??"OTHER").slice(0,24),reference:String(item.reference??"").slice(0,500),submitted_at:stamp};}),evidence_verified:false,completion_status:"REVIEW_REQUIRED",last_submission_key:idempotency,updated_at:stamp}});
   await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId},{$set:{status:"REVIEW_REQUIRED",updated_at:stamp}});
   await audit(db,actorId,"QUEST_EVIDENCE_SUBMITTED",assignmentId,{evidenceCount:evidence.length});
   return success({submitted:true,status:"REVIEW_REQUIRED"},meta,202);
@@ -159,7 +161,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   if((lower&&requiredTotalXp<=Number(lower.required_total_xp))||(higher&&requiredTotalXp>=Number(higher.required_total_xp)))throw fail("NON_MONOTONIC_LEVEL_THRESHOLD","XP thresholds must increase strictly with each level.");
   const previous=active.find(r=>Number(r.level)===level),version=Number(previous?.version??0)+1,stamp=now(),id=randomUUID();
   if(previous)await db.collection<Doc>("account_level_rules").updateOne({_id:previous._id,status:"ACTIVE"},{$set:{status:"INACTIVE",updated_at:stamp}});
-  const unlocks=Array.isArray(body.unlocks)?body.unlocks.filter((v:any)=>typeof v==="string").slice(0,50):[];
+  const unlocks=Array.isArray(body.unlocks)?body.unlocks.filter((v:unknown)=>typeof v==="string").slice(0,50):[];
   await db.collection<Doc>("account_level_rules").insertOne({_id:id,level,required_total_xp:requiredTotalXp,unlocks,status:"ACTIVE",version,created_at:stamp,updated_at:stamp,updated_by:actorId});
   await audit(db,actorId,"ACCOUNT_LEVEL_RULE_UPSERTED",id,{level,requiredTotalXp,version});
   return success({ruleId:id,level,version},meta,201);
@@ -198,7 +200,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
    }
   }
   const eventId="quest-claim:"+assignmentId,stamp=now(),client=await getMongoClient(),session=client.startSession();
-  let granted:any[]=[];
+  let granted:Array<Record<string,unknown>>=[];
   try{
    await session.withTransaction(async()=>{
     const claims=db.collection<Doc>("quest_claims");
@@ -207,7 +209,18 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
     if(!player)throw new AppError("PLAYER_NOT_FOUND","Active player was not found.",404);
     const xp=rewards.filter(r=>r.type==="XP").reduce((sum,r)=>sum+r.amount,0);
     if(xp>0)await recordXpEvent(db,session,{playerId:actorId,xpAmount:xp,eventId,sourceType:"QUEST_CLAIM",sourceId:assignmentId});
-    granted=rewards.map(r=>({...r,settlement_status:r.type==="XP"?"GRANTED":r.type==="ACHIEVEMENT"?"PENDING_ACHIEVEMENT":"PENDING_PHASE_08"}));
+    granted=[];
+    for(const reward of rewards){
+     let settlementStatus=reward.type==="XP"?"GRANTED":"PENDING_PHASE_08";
+     if(reward.type==="ACHIEVEMENT"&&reward.achievement_id){
+      const definition=await db.collection<Doc>("achievement_definitions").findOne({_id:reward.achievement_id,active:true},{session});
+      if(definition){
+       await db.collection<Doc>("player_achievements").updateOne({player_id:actorId,achievement_id:reward.achievement_id},{$setOnInsert:{_id:randomUUID(),player_id:actorId,achievement_id:reward.achievement_id,status:"UNLOCKED",progress:{},unlocked_at:stamp,created_at:stamp,updated_at:stamp}},{upsert:true,session});
+       settlementStatus="GRANTED";
+      }else settlementStatus="PENDING_ACHIEVEMENT";
+     }
+     granted.push({...reward,settlement_status:settlementStatus});
+    }
     await claims.insertOne({_id:randomUUID(),assignment_id:assignmentId,claimed_by:actorId,rewards_granted:granted,event_id:eventId,claimed_at:stamp,created_at:stamp,updated_at:stamp},{session});
     await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId,status:"COMPLETED"},{$set:{status:"CLAIMED",updated_at:stamp}},{session});
    });
