@@ -15,7 +15,8 @@
     "db:migrate": "node scripts/db/migrate.mjs",
     "db:migrate:phase-03": "node scripts/db/migrate-phase-03.mjs",
     "db:verify-query-plans": "node scripts/db/verify-query-plans.mjs",
-    "db:migrate:phase-04": "node scripts/db/migrate-phase-04.mjs"
+    "db:migrate:phase-04": "node scripts/db/migrate-phase-04.mjs",
+    "db:migrate:phase-05": "node scripts/db/migrate-phase-05.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
