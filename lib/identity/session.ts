@@ -43,7 +43,6 @@ export async function createPlayerSession(input: {
   playerId: string;
   authAccountId: string;
   discordUserId: string;
-  request: NextRequest;
 }) {
   const db = await getMongoDatabase();
   const token = createOpaqueToken();
