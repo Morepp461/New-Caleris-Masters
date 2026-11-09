@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
+import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, LEGACY_INDEXES_TO_DROP, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
 
 test("domain collection catalog matches the supplied data dictionary", () => {
   assert.equal(DOMAIN_COLLECTIONS.length, 63);
@@ -101,4 +101,10 @@ test("collections without field tables retain identifier-only baseline validator
     assert.equal(COLLECTION_VALIDATORS[name].$jsonSchema.required[0], "_id");
     assert.deepEqual(Object.keys(COLLECTION_VALIDATORS[name].$jsonSchema.properties), ["_id"]);
   }
+});
+
+test("superseded non-unique race round index is explicitly retired", () => {
+  assert.deepEqual(LEGACY_INDEXES_TO_DROP, [
+    ["race_events", "ix_race_events_season_division_round"],
+  ]);
 });
