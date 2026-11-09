@@ -1,0 +1,10 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import {ATTRIBUTE_KEYS,TEAM_ATTRIBUTE_KEYS,normalizeAttribute,createDefaultDevelopmentRules,validateDevelopmentRules,getUpgradeCost,canUpgrade} from "../lib/development/policy.mjs";
+const rules=()=>({...createDefaultDevelopmentRules("season-1"),status:"ACTIVE",enabled:true,upgrade_costs:{race_pace:[{from:50,to:51,cost:3}]},per_period_limits:{driver:2,team:2}});
+test("canonical driver and team attributes contain 16 fields each",()=>{assert.equal(ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
+test("CMRE normalization maps 50 to 0 and 200 to 1",()=>{assert.equal(normalizeAttribute(50),0);assert.equal(normalizeAttribute(125),0.5);assert.equal(normalizeAttribute(200),1);});
+test("season rules default to draft with no implicit prices",()=>{const r=createDefaultDevelopmentRules("s");assert.equal(r.status,"DRAFT");assert.deepEqual(r.upgrade_costs,{});assert.equal(validateDevelopmentRules(r).ok,true);});
+test("upgrade requires active rules and exact configured price",()=>{assert.equal(canUpgrade({ownerType:"PLAYER",attributeKey:"race_pace",currentValue:50,newValue:51,rules:rules()}).cost,3);assert.equal(getUpgradeCost(rules(),"race_pace",51,52,"PLAYER").reason,"SEASON_PRICE_NOT_CONFIGURED");});
+test("DDP and TDP owner boundaries are enforced",()=>{assert.equal(canUpgrade({ownerType:"TEAM",attributeKey:"race_pace",currentValue:50,newValue:51,rules:rules()}).reason,"ATTRIBUTE_OWNER_MISMATCH");});
+test("attribute bounds and period caps are enforced",()=>{const r=rules();assert.equal(canUpgrade({ownerType:"PLAYER",attributeKey:"race_pace",currentValue:50,newValue:201,rules:r}).reason,"ATTRIBUTE_OUT_OF_RANGE");assert.equal(canUpgrade({ownerType:"PLAYER",attributeKey:"race_pace",currentValue:50,newValue:51,rules:r,periodUpgradeCount:2}).reason,"PER_PERIOD_LIMIT_REACHED");});
