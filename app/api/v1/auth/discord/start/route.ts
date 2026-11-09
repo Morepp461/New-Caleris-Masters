@@ -7,7 +7,13 @@ export const dynamic = "force-dynamic";
 
 export const GET = apiHandler(async (_request: NextRequest) => {
   const state = createOAuthState();
-  const response = NextResponse.redirect(buildDiscordAuthorizationUrl(state));
+  let authorizationUrl: URL;
+  try {
+    authorizationUrl = buildDiscordAuthorizationUrl(state);
+  } catch {
+    return NextResponse.redirect(new URL("/?auth=not-configured", _request.url));
+  }
+  const response = NextResponse.redirect(authorizationUrl);
   response.cookies.set(getOAuthStateCookieName(), state, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
