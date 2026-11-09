@@ -199,7 +199,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
     }
    }
   }
-  const eventId="quest-claim:"+assignmentId,stamp=now(),client=await getMongoClient(),session=client.startSession();
+  const eventId=randomUUID(),stamp=now(),client=await getMongoClient(),session=client.startSession();
   let granted:Array<Record<string,unknown>>=[];
   try{
    await session.withTransaction(async()=>{
@@ -223,9 +223,9 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
     }
     await claims.insertOne({_id:randomUUID(),assignment_id:assignmentId,claimed_by:actorId,rewards_granted:granted,event_id:eventId,claimed_at:stamp,created_at:stamp,updated_at:stamp},{session});
     await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId,status:"COMPLETED"},{$set:{status:"CLAIMED",updated_at:stamp}},{session});
+    await audit(db,actorId,"QUEST_REWARD_CLAIMED",assignmentId,{rewards:granted,eventId});
    });
   }catch(error){if((error as {code?:number}).code===11000)throw fail("ALREADY_CLAIMED","This quest assignment has already been claimed.");throw error;}finally{await session.endSession();}
-  await audit(db,actorId,"QUEST_REWARD_CLAIMED",assignmentId,{rewards:granted,eventId});
   return success({assignmentId,rewards:granted,eventId},meta,201);
  }
  throw new AppError("UNKNOWN_QUEST_ACTION","Unsupported quest action.",400);
