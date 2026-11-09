@@ -8,7 +8,8 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { validateQuestDefinition, canClaimAssignment, calculateAccountLevel, normalizeRewardGrant } from "@/lib/progression/policy.mjs";
+import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown } from "@/lib/progression/policy.mjs";
+import { recordXpEvent } from "@/lib/progression/xp-service";
 
 export const runtime="nodejs";
 export const dynamic="force-dynamic";
@@ -157,13 +158,7 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
     const player=await db.collection<Doc>("players").findOne({_id:actorId,account_status:"ACTIVE"},{session});
     if(!player)throw new AppError("PLAYER_NOT_FOUND","Active player was not found.",404);
     const xp=rewards.filter(r=>r.type==="XP").reduce((sum,r)=>sum+r.amount,0);
-    if(xp>0){
-     await db.collection<Doc>("player_xp_events").insertOne({_id:randomUUID(),player_id:actorId,source_type:"QUEST_CLAIM",source_id:assignmentId,xp_amount:xp,event_id:eventId,created_at:stamp,updated_at:stamp},{session});
-     const totalXp=Number(player.total_xp??player.xp??0)+xp;
-     const rules=await db.collection<Doc>("account_level_rules").find({status:"ACTIVE"},{session}).sort({level:1}).toArray();
-     const level=calculateAccountLevel(totalXp,rules);
-     await db.collection<Doc>("players").updateOne({_id:actorId,account_status:"ACTIVE"},{$inc:{total_xp:xp,xp:xp},$set:{level:level.level,updated_at:stamp}},{session});
-    }
+    if(xp>0)await recordXpEvent(db,session,{playerId:actorId,xpAmount:xp,eventId,sourceType:"QUEST_CLAIM",sourceId:assignmentId});
     granted=rewards.map(r=>({...r,settlement_status:r.type==="XP"?"GRANTED":r.type==="ACHIEVEMENT"?"PENDING_ACHIEVEMENT":"PENDING_PHASE_08"}));
     await claims.insertOne({_id:randomUUID(),assignment_id:assignmentId,claimed_by:actorId,rewards_granted:granted,event_id:eventId,claimed_at:stamp,created_at:stamp,updated_at:stamp},{session});
     await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId,status:"COMPLETED"},{$set:{status:"CLAIMED",updated_at:stamp}},{session});
