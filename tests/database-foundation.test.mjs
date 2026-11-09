@@ -21,6 +21,14 @@ test("all source-backed custom indexes are represented once", () => {
   }
 });
 
+test("all source-backed unique indexes declare uniqueness", () => {
+  const uniqueIndexes = INDEXES.filter(([, , definition]) => definition.unique === true);
+  assert.ok(uniqueIndexes.length >= 10);
+  for (const [, name, definition] of uniqueIndexes) {
+    assert.equal(definition.unique, true, name);
+  }
+});
+
 test("active gameplay role has a partial unique index", () => {
   const index = INDEXES.find(([, name]) => name === "uq_role_assignments_active_player");
   assert.ok(index);

@@ -76,7 +76,21 @@ try {
 
     for (const [collectionName, indexName, definition] of INDEXES) {
       const { keys, ...options } = definition;
-      await db.collection(collectionName).createIndex(keys, { ...options, name: indexName });
+      const collection = db.collection(collectionName);
+      const existingIndexes = await collection.listIndexes().toArray();
+      const current = existingIndexes.find((index) => index.name === indexName);
+      const uniqueMismatch = current && Boolean(current.unique) !== Boolean(options.unique);
+      const partialMismatch = current &&
+        JSON.stringify(current.partialFilterExpression ?? null) !==
+        JSON.stringify(options.partialFilterExpression ?? null);
+
+      // Atlas connector bootstrap can create key indexes but cannot set unique/partial options.
+      // Rebuild only mismatched indexes. Development DB is empty; production remains guarded.
+      if (current && (uniqueMismatch || partialMismatch)) {
+        await collection.dropIndex(indexName);
+      }
+
+      await collection.createIndex(keys, { ...options, name: indexName });
     }
 
     await db.collection("schema_migrations").insertOne({

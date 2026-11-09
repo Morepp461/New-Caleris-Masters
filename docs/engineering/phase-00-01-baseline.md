@@ -54,10 +54,11 @@ The connected GitHub interface supports repository content, branches, commits, P
 
 ### Schema validation and migration status
 The repository migration defines a conservative MongoDB JSON Schema baseline requiring a string UUID _id and applies it with collMod. The Atlas connector used for direct development bootstrap can create collections and indexes but does not expose collMod / collection-validator operations. Therefore:
-- Development collections and all 39 custom indexes have been created.
+- Development collections and all 39 custom index key patterns have been created. The Atlas connector accepted index creation but ignored unique/partial options; query-plan inspection confirmed at least one documented unique index is currently non-unique.
+- The versioned migration now compares existing index options and rebuilds mismatched indexes with the source-defined unique/partial constraints. This must be run before treating uniqueness as enforced.
 - Field validators have NOT yet been applied.
 - schema_migrations exists but is empty; the versioned migration has not been recorded as applied.
-- The migration runner must be executed with a development MONGODB_URI to apply validators and record the checksum before Phase 01 can be marked fully accepted.
+- The migration runner must be executed with a development MONGODB_URI to apply validators, reconcile unique/partial index options, and record the checksum before Phase 01 can be marked fully accepted.
 - Detailed field-level validators are not invented where the source documents leave fields open or conflict.
 
 ### Known source conflicts / open decisions
@@ -70,7 +71,7 @@ The repository migration defines a conservative MongoDB JSON Schema baseline req
 - GitHub Actions CI on the PR commit: lint, typecheck, unit tests, production build, and secret scan all succeeded.
 - Vercel Preview deployment for the PR head reached READY.
 - Development database contains the expected 63 domain collections plus schema_migrations, with no game seed documents.
-- The 39 custom index definitions were created from the source index plan.
+- The 39 custom index key patterns were created from the source index plan; unique/partial options remain pending the migration runner.
 - Production database counts and existing Admin/session records remain unchanged.
 - Production deployment must be READY after merge to main.
 
