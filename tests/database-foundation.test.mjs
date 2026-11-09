@@ -14,7 +14,7 @@ test("domain collection catalog matches the supplied data dictionary", () => {
 });
 
 test("all source-backed custom indexes are represented once", () => {
-  assert.equal(INDEXES.length, 42);
+  assert.equal(INDEXES.length, 44);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {
@@ -130,4 +130,20 @@ test("all source-defined primary query patterns have explain coverage", () => {
       indexCollection === collection && indexName === expectedIndex
     ), `Missing expected index definition: ${collection}.${expectedIndex}`);
   }
+});
+
+test("a player can have at most one active team membership", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_team_memberships_active_player");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { player_id: 1 });
+  assert.deepEqual(index[2].partialFilterExpression, { status: "ACTIVE" });
+});
+
+test("a driver can have at most one active team contract", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_team_contracts_active_driver");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { driver_player_id: 1 });
+  assert.deepEqual(index[2].partialFilterExpression, { status: "ACTIVE" });
 });
