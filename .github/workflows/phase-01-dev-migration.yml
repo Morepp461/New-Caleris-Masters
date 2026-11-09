@@ -1,0 +1,122 @@
+name: Phase 01 Development Database Migration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - chore/phase-01-migration-acceptance
+      - fix/phase-01-test-assertions
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-01-dev-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-development:
+    name: Validate and migrate Development database
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+
+      - name: Require development database secret
+        run: |
+          if [ -z "$MONGODB_URI" ]; then
+            echo "::error::Repository secret MONGODB_URI_DEV is missing."
+            exit 1
+          fi
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Production build
+        run: npm run build
+
+      - name: Secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Apply development database migration
+        run: npm run db:migrate
+
+      - name: Verify primary query plans use expected indexes
+        run: npm run db:verify-query-plans
+
+      - name: Verify migration, indexes, validators, and empty baseline
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, LEGACY_INDEXES_TO_DROP } from "./scripts/db/collections.mjs";
+
+          const client = new MongoClient(process.env.MONGODB_URI, {
+            maxPoolSize: 2,
+            serverSelectionTimeoutMS: 10000,
+            appName: "caleris-masters-migration-verification",
+          });
+
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            const names = new Set((await db.listCollections({}, { nameOnly: true }).toArray()).map(x => x.name));
+            for (const name of DOMAIN_COLLECTIONS) assert.ok(names.has(name), `Missing collection: ${name}`);
+            assert.ok(names.has("schema_migrations"));
+            const migration = await db.collection("schema_migrations").findOne({ _id: "001-domain-collections-and-indexes" });
+            assert.ok(migration, "Migration history record is missing.");
+            assert.equal(migration.collection_count, DOMAIN_COLLECTIONS.length);
+            assert.equal(migration.index_count, INDEXES.length);
+
+            for (const [collectionName, indexName, definition] of INDEXES) {
+              const indexes = await db.collection(collectionName).listIndexes().toArray();
+              const actual = indexes.find(x => x.name === indexName);
+              assert.ok(actual, `Missing index: ${collectionName}.${indexName}`);
+              assert.equal(Boolean(actual.unique), Boolean(definition.unique), `Unique mismatch: ${indexName}`);
+              assert.deepEqual(actual.partialFilterExpression ?? null, definition.partialFilterExpression ?? null,
+                `Partial filter mismatch: ${indexName}`);
+            }
+
+            for (const [collectionName, indexName] of LEGACY_INDEXES_TO_DROP) {
+              const indexes = await db.collection(collectionName).listIndexes().toArray();
+              assert.ok(!indexes.some(x => x.name === indexName), `Legacy index still exists: ${indexName}`);
+            }
+
+            for (const collectionName of [...DOMAIN_COLLECTIONS, "schema_migrations"]) {
+              const info = await db.listCollections({ name: collectionName }).next();
+              assert.ok(info, `Missing collection metadata: ${collectionName}`);
+              if (collectionName !== "schema_migrations") {
+                assert.deepEqual(info.options?.validator, COLLECTION_VALIDATORS[collectionName],
+                  `Validator mismatch: ${collectionName}`);
+                const count = await db.collection(collectionName).countDocuments({});
+                assert.equal(count, 0, `Expected empty initial state; found ${count} documents in ${collectionName}`);
+              }
+            }
+
+            console.log(`Verified ${DOMAIN_COLLECTIONS.length} domain collections, ${INDEXES.length} custom indexes, collection-specific identifier validators, migration history, and zero seeded domain documents in ${process.env.MONGODB_DB}.`);
+          } finally {
+            await client.close();
+          }
+          NODE

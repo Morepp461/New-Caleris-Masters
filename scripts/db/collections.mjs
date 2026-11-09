@@ -1,3 +1,6 @@
+import FIELD_SCHEMA_CATALOG from "./field-schema-catalog.json" with { type: "json" };
+export { FIELD_SCHEMA_CATALOG };
+
 export const DOMAIN_COLLECTIONS = [
   "players", "auth_accounts", "role_assignments", "permissions",
   "role_permission_policies", "player_sessions",
@@ -19,6 +22,10 @@ export const DOMAIN_COLLECTIONS = [
 
 const classic = (keys, options = {}) => ({ keys, ...options });
 
+export const LEGACY_INDEXES_TO_DROP = [
+  ["race_events", "ix_race_events_season_division_round"],
+];
+
 export const INDEXES = [
   ["players", "uq_players_username", classic({ username: 1 }, { unique: true })],
   ["players", "ix_players_active_role", classic({ active_role: 1 })],
@@ -30,18 +37,21 @@ export const INDEXES = [
   ["role_assignments", "uq_role_assignments_active_player", classic({ player_id: 1 }, { unique: true, partialFilterExpression: { status: "ACTIVE" } })],
   ["permissions", "uq_permissions_key", classic({ key: 1 }, { unique: true })],
   ["divisions", "uq_divisions_code", classic({ code: 1 }, { unique: true })],
+  ["divisions", "uq_divisions_name", classic({ name: 1 }, { unique: true })],
   ["seasons", "uq_seasons_number", classic({ season_number: 1 }, { unique: true })],
   ["driver_profiles", "uq_driver_profiles_player", classic({ player_id: 1 }, { unique: true })],
   ["teams", "ix_teams_owner_status", classic({ owner_player_id: 1, status: 1 })],
   ["team_memberships", "ix_team_memberships_player_status", classic({ player_id: 1, status: 1 })],
+  ["team_memberships", "uq_team_memberships_active_player", classic({ player_id: 1 }, { unique: true, partialFilterExpression: { status: "ACTIVE" } })],
   ["team_memberships", "ix_team_memberships_team_status", classic({ team_id: 1, status: 1 })],
   ["team_contracts", "ix_team_contracts_driver_status", classic({ driver_player_id: 1, status: 1 })],
+  ["team_contracts", "uq_team_contracts_active_driver", classic({ driver_player_id: 1 }, { unique: true, partialFilterExpression: { status: "ACTIVE" } })],
   ["team_contracts", "ix_team_contracts_team_status", classic({ team_id: 1, status: 1 })],
   ["quest_assignments", "ix_quest_assignments_target_status", classic({ target_type: 1, target_id: 1, status: 1 })],
   ["quest_claims", "uq_quest_claims_assignment", classic({ assignment_id: 1 }, { unique: true })],
   ["development_wallets", "uq_development_wallet_owner_token", classic({ owner_type: 1, owner_id: 1, token_type: 1 }, { unique: true })],
   ["development_transactions", "ix_development_transactions_wallet_created", classic({ wallet_id: 1, created_at: 1 })],
-  ["race_events", "ix_race_events_season_division_round", classic({ season_id: 1, division_id: 1, round_number: 1 })],
+  ["race_events", "uq_race_events_season_division_round", classic({ season_id: 1, division_id: 1, round_number: 1 }, { unique: true })],
   ["race_events", "ix_race_events_status_schedule", classic({ status: 1, scheduled_start_at: 1 })],
   ["race_entries", "uq_race_entries_event_driver_profile", classic({ race_event_id: 1, driver_profile_id: 1 }, { unique: true })],
   ["race_sessions", "uq_race_sessions_active_event", classic({ race_event_id: 1 }, { unique: true, partialFilterExpression: { status: { $in: ["PENDING", "INITIALIZING", "RUNNING", "PAUSED", "RECOVERING"] } } })],
@@ -56,6 +66,8 @@ export const INDEXES = [
   ["sponsor_negotiations", "ix_sponsor_negotiations_offer", classic({ offer_id: 1 })],
   ["sponsor_contracts", "ix_sponsor_contracts_team_status", classic({ team_id: 1, status: 1 })],
   ["sponsor_payouts", "ix_sponsor_payouts_contract_status", classic({ contract_id: 1, status: 1 })],
+  ["player_achievements", "uq_player_achievements_player_achievement", classic({ player_id: 1, achievement_id: 1 }, { unique: true })],
+  ["team_achievements", "uq_team_achievements_team_achievement", classic({ team_id: 1, achievement_id: 1 }, { unique: true })],
   ["game_events", "uq_game_events_idempotency", classic({ idempotency_key: 1 }, { unique: true })],
   ["outbox_events", "ix_outbox_events_status_attempt", classic({ status: 1, next_attempt_at: 1 })],
   ["audit_logs", "ix_audit_logs_target_created", classic({ target_type: 1, target_id: 1, created_at: 1 })],
@@ -68,8 +80,104 @@ export const UUID_BASELINE_VALIDATOR = {
     properties: {
       _id: {
         bsonType: "string",
-        description: "Immutable application UUID string, per Database Schema & Data Dictionary v1.0.",
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        description: "Immutable UUID v4 string, per Database Schema & Data Dictionary v1.0.",
       },
     },
   },
 };
+
+export const NATURAL_KEY_BASELINE_VALIDATOR = {
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["_id"],
+    properties: {
+      _id: {
+        bsonType: "string",
+        minLength: 1,
+        description: "Natural string key, as specified for game_settings._id.",
+      },
+    },
+  },
+};
+
+export const MIGRATION_ID_BASELINE_VALIDATOR = {
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["_id"],
+    properties: {
+      _id: {
+        bsonType: "string",
+        minLength: 1,
+        description: "Versioned migration identifier.",
+      },
+    },
+  },
+};
+
+const BSON_TYPE_CODES = {
+  s: "string",
+  i: "int",
+  l: "long",
+  d: "decimal",
+  b: "bool",
+  t: "date",
+  o: "object",
+  a: "array",
+  x: "objectId",
+};
+
+function buildCollectionValidator(collectionName) {
+  const spec = FIELD_SCHEMA_CATALOG[collectionName];
+  if (!spec) {
+    if (collectionName === "game_settings") return NATURAL_KEY_BASELINE_VALIDATOR;
+    return {
+      $jsonSchema: {
+        bsonType: "object",
+        required: ["_id", "created_at", "updated_at"],
+        properties: {
+          ...UUID_BASELINE_VALIDATOR.$jsonSchema.properties,
+          created_at: { bsonType: "date" },
+          updated_at: { bsonType: "date" },
+        },
+      },
+    };
+  }
+
+  const properties = {
+    _id: collectionName === "game_settings"
+      ? NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id
+      : UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id,
+  };
+
+  for (const [typeCode, fields] of Object.entries(spec.t)) {
+    const nullable = typeCode.endsWith("?");
+    const bsonType = BSON_TYPE_CODES[nullable ? typeCode.slice(0, -1) : typeCode];
+    if (!bsonType) throw new Error(`Unknown BSON type code "${typeCode}" in ${collectionName}.`);
+
+    for (const field of fields) {
+      properties[field] = { bsonType: nullable ? [bsonType, "null"] : bsonType };
+    }
+  }
+
+  const required = new Set(spec.r.split(" "));
+  for (const timestampField of ["created_at", "updated_at"]) {
+    if (!properties[timestampField]) {
+      properties[timestampField] = { bsonType: "date" };
+    }
+    required.add(timestampField);
+  }
+
+  return {
+    $jsonSchema: {
+      bsonType: "object",
+      required: [...required],
+      properties,
+      additionalProperties: true,
+    },
+  };
+}
+
+export const COLLECTION_VALIDATORS = Object.fromEntries(
+  DOMAIN_COLLECTIONS.map((name) => [name, buildCollectionValidator(name)]),
+);

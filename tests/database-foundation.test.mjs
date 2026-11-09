@@ -1,6 +1,7 @@
+import { QUERY_PLAN_CASES } from "../scripts/db/query-plan-catalog.mjs";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { DOMAIN_COLLECTIONS, INDEXES, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
+import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, FIELD_SCHEMA_CATALOG, INDEXES, LEGACY_INDEXES_TO_DROP, NATURAL_KEY_BASELINE_VALIDATOR, UUID_BASELINE_VALIDATOR } from "../scripts/db/collections.mjs";
 
 test("domain collection catalog matches the supplied data dictionary", () => {
   assert.equal(DOMAIN_COLLECTIONS.length, 63);
@@ -13,7 +14,7 @@ test("domain collection catalog matches the supplied data dictionary", () => {
 });
 
 test("all source-backed custom indexes are represented once", () => {
-  assert.equal(INDEXES.length, 39);
+  assert.equal(INDEXES.length, 44);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {
@@ -45,7 +46,144 @@ test("race event has one active authoritative session", () => {
   ]);
 });
 
-test("UUID baseline validator requires only immutable string _id", () => {
+test("UUID baseline validator enforces UUID v4 string identifiers", () => {
   assert.deepEqual(UUID_BASELINE_VALIDATOR.$jsonSchema.required, ["_id"]);
   assert.equal(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
+  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\[0-9a-f\]/);
+});
+
+test("natural-key collection is not incorrectly constrained to UUID", () => {
+  const schema = COLLECTION_VALIDATORS.game_settings.$jsonSchema;
+  assert.equal(schema.properties._id.bsonType, "string");
+  assert.equal(schema.properties._id.pattern, undefined);
+  assert.equal(schema.properties._id.minLength, 1);
+  assert.ok(schema.required.includes("_id"));
+  assert.ok(schema.required.includes("created_at"));
+  assert.ok(schema.required.includes("updated_at"));
+  assert.equal(schema.properties.created_at.bsonType, "date");
+  assert.equal(schema.properties.updated_at.bsonType, "date");
+  assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
+  assert.deepEqual(NATURAL_KEY_BASELINE_VALIDATOR.$jsonSchema.properties._id, {
+    bsonType: "string",
+    minLength: 1,
+    description: "Natural string key, as specified for game_settings._id.",
+  });
+});
+
+test("division names and codes are both unique", () => {
+  const code = INDEXES.find(([, name]) => name === "uq_divisions_code");
+  const name = INDEXES.find(([, indexName]) => indexName === "uq_divisions_name");
+  assert.ok(code);
+  assert.ok(name);
+  assert.equal(code[2].unique, true);
+  assert.deepEqual(code[2].keys, { code: 1 });
+  assert.equal(name[2].unique, true);
+  assert.deepEqual(name[2].keys, { name: 1 });
+});
+
+test("race event round is unique within season and division", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_race_events_season_division_round");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { season_id: 1, division_id: 1, round_number: 1 });
+});
+
+test("index names are unique per collection", () => {
+  const names = INDEXES.map(([collection, name]) => `${collection}.${name}`);
+  assert.equal(new Set(names).size, names.length);
+});
+
+test("source-defined field schemas cover all collections with dictionary tables", () => {
+  assert.equal(Object.keys(FIELD_SCHEMA_CATALOG).length, 58);
+  assert.equal(Object.keys(COLLECTION_VALIDATORS).length, DOMAIN_COLLECTIONS.length);
+  assert.deepEqual(COLLECTION_VALIDATORS.players.$jsonSchema.required, [
+    "_id", "username", "display_name", "active_role", "account_status",
+    "level", "xp", "total_xp", "is_operator", "created_at", "updated_at",
+  ]);
+  assert.equal(COLLECTION_VALIDATORS.players.$jsonSchema.properties.xp.bsonType, "long");
+  assert.equal(COLLECTION_VALIDATORS.players.$jsonSchema.properties.primary_team_id.bsonType[1], "null");
+  assert.equal(COLLECTION_VALIDATORS.race_results.$jsonSchema.properties.points_awarded.bsonType, "decimal");
+});
+
+test("collections without field tables retain identifier-only baseline validators", () => {
+  for (const name of [
+    "player_sessions", "team_facilities",
+    "operator_actions", "system_jobs", "system_health_logs",
+  ]) {
+    assert.deepEqual(COLLECTION_VALIDATORS[name].$jsonSchema.required, ["_id", "created_at", "updated_at"]);
+    assert.deepEqual(Object.keys(COLLECTION_VALIDATORS[name].$jsonSchema.properties), ["_id", "created_at", "updated_at"]);
+  }
+});
+
+test("superseded non-unique race round index is explicitly retired", () => {
+  assert.deepEqual(LEGACY_INDEXES_TO_DROP, [
+    ["race_events", "ix_race_events_season_division_round"],
+  ]);
+});
+
+test("player and team achievements have unique participant-definition pairs", () => {
+  const player = INDEXES.find(([, name]) => name === "uq_player_achievements_player_achievement");
+  const team = INDEXES.find(([, name]) => name === "uq_team_achievements_team_achievement");
+  assert.ok(player);
+  assert.ok(team);
+  assert.deepEqual(player[2].keys, { player_id: 1, achievement_id: 1 });
+  assert.deepEqual(team[2].keys, { team_id: 1, achievement_id: 1 });
+  assert.equal(player[2].unique, true);
+  assert.equal(team[2].unique, true);
+  assert.deepEqual(COLLECTION_VALIDATORS.team_achievements.$jsonSchema.properties.team_id, { bsonType: "string" });
+});
+
+test("all source-defined primary query patterns have explain coverage", () => {
+  assert.equal(QUERY_PLAN_CASES.length, 38);
+  for (const [collection, , , expectedIndex] of QUERY_PLAN_CASES) {
+    assert.ok(DOMAIN_COLLECTIONS.includes(collection));
+    assert.ok(INDEXES.some(([indexCollection, indexName]) =>
+      indexCollection === collection && indexName === expectedIndex
+    ), `Missing expected index definition: ${collection}.${expectedIndex}`);
+  }
+});
+
+test("a player can have at most one active team membership", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_team_memberships_active_player");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { player_id: 1 });
+  assert.deepEqual(index[2].partialFilterExpression, { status: "ACTIVE" });
+});
+
+test("a driver can have at most one active team contract", () => {
+  const index = INDEXES.find(([, name]) => name === "uq_team_contracts_active_driver");
+  assert.ok(index);
+  assert.equal(index[2].unique, true);
+  assert.deepEqual(index[2].keys, { driver_player_id: 1 });
+  assert.deepEqual(index[2].partialFilterExpression, { status: "ACTIVE" });
+});
+
+test("every required field has a declared BSON property type", () => {
+  for (const [collectionName, validator] of Object.entries(COLLECTION_VALIDATORS)) {
+    const schema = validator.$jsonSchema;
+    for (const field of schema.required) {
+      assert.ok(schema.properties[field], `Required field ${collectionName}.${field} has no BSON type declaration`);
+    }
+  }
+});
+
+test("field schema catalog has no duplicate field type declarations", () => {
+  for (const [collectionName, spec] of Object.entries(FIELD_SCHEMA_CATALOG)) {
+    const fields = Object.entries(spec.t).flatMap(([type, names]) => names.map(name => [name, type]));
+    const names = fields.map(([name]) => name);
+    assert.equal(new Set(names).size, names.length, `Duplicate type declaration in ${collectionName}`);
+  }
+});
+
+test("all domain entities require immutable ID and UTC timestamp fields", () => {
+  for (const name of DOMAIN_COLLECTIONS) {
+    if (name === "game_settings") continue;
+    const schema = COLLECTION_VALIDATORS[name].$jsonSchema;
+    for (const field of ["_id", "created_at", "updated_at"]) {
+      assert.ok(schema.required.includes(field), `Missing required ${name}.${field}`);
+    }
+    assert.equal(schema.properties.created_at.bsonType, "date");
+    assert.equal(schema.properties.updated_at.bsonType, "date");
+  }
 });
