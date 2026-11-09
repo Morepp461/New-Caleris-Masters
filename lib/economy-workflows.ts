@@ -172,7 +172,8 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         if(!rules.enabledWorkflows.prizeMoney||!rules.prizeMoney.enabled)throw new Error("Prize money dinonaktifkan.");
         const rank=money(input.position);if(rank<1)throw new Error("Posisi klasemen tidak valid.");
         const amount=Math.max(rules.prizeMoney.minimum,rank===1?rules.prizeMoney.first:rank===2?rules.prizeMoney.second:rules.prizeMoney.second-(rank-2)*rules.prizeMoney.decrementPerPosition);
-        if(input.recipientType==="driver")throw new Error("Prize Money ini adalah WCC dan hanya dibayarkan kepada tim.");\n        const recipient=team(String(input.recipientName??""));
+        if(input.recipientType==="driver")throw new Error("Prize Money ini adalah WCC dan hanya dibayarkan kepada tim.");
+        const recipient=team(String(input.recipientName??""));
         if(amount<=0)throw new Error("Prize money posisi ini bernilai nol.");
         await add(bank,"Keluar","Prize Money",amount,`P${rank} Season ${input.season}`);
         await add(recipient,"Masuk","Prize Money",amount,`Prize Money P${rank}`);
