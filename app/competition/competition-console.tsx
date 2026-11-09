@@ -5,7 +5,7 @@ import { useCallback, useEffect, useState } from "react";
 
 type Division = { _id: string; name: string; code: string; tier: number; status: string; display_order: number };
 type Season = { _id: string; season_number: number; name: string; status: string };
-type Ruleset = { _id: string; season_id: string; division_id: string; version: number; status: string };
+type Ruleset = { _id: string; season_id: string; division_id: string; version: number; status: string; calendar_rules?: Record<string, unknown>; scoring_rules?: Record<string, unknown>; penalty_rules?: Record<string, unknown>; race_rules?: Record<string, unknown>; economy_rules?: Record<string, unknown>; eligibility_rules?: Record<string, unknown> };
 type Calendar = { _id: string; season_id: string; division_id: string; total_rounds: number; status: string };
 type Circuit = { _id: string; name: string; city: string; country: string };
 type CircuitVersion = { _id: string; circuit_id: string; version: number };
@@ -77,9 +77,9 @@ export default function CompetitionConsole() {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
     return parsed as Record<string, unknown>;
   }
-  async function createRuleset(action = "CREATE_RULESET") {
+  function editDraftRuleset(item: Ruleset) {\n    setRulesetId(item._id); setSeasonId(item.season_id); setDivisionId(item.division_id);\n    setCalendarRules(JSON.stringify(item.calendar_rules ?? {}, null, 2)); setScoringRules(JSON.stringify(item.scoring_rules ?? {}, null, 2));\n    setPenaltyRules(JSON.stringify(item.penalty_rules ?? {}, null, 2)); setRaceRules(JSON.stringify(item.race_rules ?? {}, null, 2));\n    setEconomyRules(JSON.stringify(item.economy_rules ?? {}, null, 2)); setEligibilityRules(JSON.stringify(item.eligibility_rules ?? {}, null, 2));\n    setMessage("Draft ruleset loaded. Edit the JSON fields, then save the draft.");\n  }\n  async function createRuleset(action = "CREATE_RULESET") {
     try {
-      await submit(action, { seasonId, divisionId, calendarRules: parseJson(calendarRules, "Calendar rules"), scoringRules: parseJson(scoringRules, "Scoring rules"), penaltyRules: parseJson(penaltyRules, "Penalty rules"), raceRules: parseJson(raceRules, "Race rules"), economyRules: parseJson(economyRules, "Economy rules"), eligibilityRules: parseJson(eligibilityRules, "Eligibility rules") });
+      await submit(action, { ...(action === "UPDATE_RULESET" ? { rulesetId } : {}), seasonId, divisionId, calendarRules: parseJson(calendarRules, "Calendar rules"), scoringRules: parseJson(scoringRules, "Scoring rules"), penaltyRules: parseJson(penaltyRules, "Penalty rules"), raceRules: parseJson(raceRules, "Race rules"), economyRules: parseJson(economyRules, "Economy rules"), eligibilityRules: parseJson(eligibilityRules, "Eligibility rules") });
     } catch (error) { setMessage(error instanceof Error ? error.message : "Invalid ruleset JSON."); }
   }
 
@@ -123,7 +123,7 @@ export default function CompetitionConsole() {
 
     <section className="competition-panel">
       <div className="competition-section-head"><span>04 / REGULATIONS</span><h2>VERSIONED RULESETS</h2></div>
-      <div className="competition-list">{data.rulesets.map((item) => <article key={item._id}><div><strong>V{item.version} · {data.seasons.find((s) => s._id === item.season_id)?.name ?? item.season_id.slice(0, 8)}</strong><small>{data.divisions.find((d) => d._id === item.division_id)?.name ?? item.division_id.slice(0, 8)}</small></div><span className={item.status === "LOCKED" ? "state-active" : "state-muted"}>{item.status}</span>{item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void submit("LOCK_RULESET", { rulesetId: item._id })}>APPROVE & LOCK</button>}</article>)}</div>
+      <div className="competition-list">{data.rulesets.map((item) => <article key={item._id}><div><strong>V{item.version} · {data.seasons.find((s) => s._id === item.season_id)?.name ?? item.season_id.slice(0, 8)}</strong><small>{data.divisions.find((d) => d._id === item.division_id)?.name ?? item.division_id.slice(0, 8)}</small></div><span className={item.status === "LOCKED" ? "state-active" : "state-muted"}>{item.status}</span>{item.status === "DRAFT" && <><button type="button" disabled={busy} onClick={() => editDraftRuleset(item)}>EDIT DRAFT</button><button type="button" disabled={busy} onClick={() => void submit("LOCK_RULESET", { rulesetId: item._id })}>APPROVE & LOCK</button></>}</article>)}</div>
       <div className="competition-form-grid">
         <label>SEASON<select value={seasonId} onChange={(event) => setSeasonId(event.target.value)}><option value="">Select season</option>{data.seasons.map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
         <label>DIVISION<select value={divisionId} onChange={(event) => setDivisionId(event.target.value)}><option value="">Select division</option>{data.divisions.filter((item) => item.status === "ACTIVE").map((item) => <option key={item._id} value={item._id}>{item.name}</option>)}</select></label>
@@ -136,7 +136,7 @@ export default function CompetitionConsole() {
         <label>ECONOMY RULES (JSON)<textarea rows={3} value={economyRules} onChange={(event) => setEconomyRules(event.target.value)} /></label>
         <label>ELIGIBILITY RULES (JSON)<textarea rows={3} value={eligibilityRules} onChange={(event) => setEligibilityRules(event.target.value)} /></label>
       </div>
-      <div className="competition-action-grid"><button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void createRuleset()}>CREATE RULESET VERSION</button><button type="button" disabled={busy || !seasonId || !divisionId || !data.rulesets.some((r) => r.season_id === seasonId && r.division_id === divisionId && r.status === "LOCKED")} onClick={() => void createRuleset("AMEND_RULESET")}>CREATE AMENDMENT VERSION</button></div>
+      <div className="competition-action-grid"><button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void createRuleset()}>CREATE RULESET VERSION</button><button type="button" disabled={busy || !rulesetId} onClick={() => void createRuleset("UPDATE_RULESET")}>SAVE DRAFT CHANGES</button><button type="button" disabled={busy || !seasonId || !divisionId || !data.rulesets.some((r) => r.season_id === seasonId && r.division_id === divisionId && r.status === "LOCKED")} onClick={() => void createRuleset("AMEND_RULESET")}>CREATE AMENDMENT VERSION</button></div>
       {rulesetId && <p>Selected ruleset: {rulesetId}</p>}
     </section>
 
