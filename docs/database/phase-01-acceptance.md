@@ -12,7 +12,7 @@ This checklist follows the Phase 01 scope and G1 gate in `CALERIS MASTERS Master
 | Index plan | `scripts/db/collections.mjs`; Data Dictionary §14 | Partial until all source-backed index definitions and conditional uniqueness decisions are implemented |
 | Critical invariants | `phase-01-architecture.md`; Data Dictionary §13 | Documented; service enforcement is later phase |
 | Transaction boundaries | `phase-01-architecture.md`; Data Dictionary §15 | Documented; transaction helper implementation is Phase 02 |
-| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Partial: current validator only constrains string _id; field-level validators need source-complete schemas |
+| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Partial: source-derived BSON type/required-field validators now cover 57 of 63 collections; six remain identifier-only because the source dictionary has no field table |
 | Migration strategy | Versioned checksum migration; guarded Development workflow | Partial: migration has not yet been verified against Atlas in this run |
 | Development initial state | Development database has no domain documents | Verified before migration; post-migration verification pending |
 | Unique ID / referential integrity tests | `tests/database-foundation.test.mjs` | Partial: catalog assertions exist; reference integrity fixtures/tests remain |
