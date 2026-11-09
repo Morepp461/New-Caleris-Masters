@@ -1,7 +1,7 @@
 export const QUERY_PLAN_CASES = [
   ["players", "username", { username: "__g1_explain__" }, "uq_players_username"],
   ["auth_accounts", "provider identity", { provider: "DISCORD", provider_user_id: "__g1_explain__" }, "uq_auth_provider_identity"],
-  ["role_assignments", "player status", { player_id: "__g1_explain__", status: "ACTIVE" }, "ix_role_assignments_player_status"],
+  ["role_assignments", "active player", { player_id: "__g1_explain__", status: "ACTIVE" }, "uq_role_assignments_active_player"],
   ["divisions", "code", { code: "__g1_explain__" }, "uq_divisions_code"],
   ["divisions", "name", { name: "__g1_explain__" }, "uq_divisions_name"],
   ["seasons", "season number", { season_number: -1 }, "uq_seasons_number"],
