@@ -3,7 +3,10 @@ import Link from "next/link";
 import {useCallback,useEffect,useState} from "react";
 import type { FormEvent } from "react";
 
-type Reward={type:string;amount:number;achievementId?:string};\ntype Quest={_id:string;name:string;description:string;quest_category:string;difficulty:string;role_eligibility:string[];requirements:unknown[];rewards:{items:Reward[]};cooldown_seconds:number;active:boolean;version:number};\ntype Progress={assignment_id:string;completion_status:string;current_progress:Record<string,number>;evidence?:{type:string;reference:string}[]};\ntype LevelRule={_id:string;level:number;required_total_xp:number;status:string};
+type Reward={type:string;amount:number;achievementId?:string};
+type Quest={_id:string;name:string;description:string;quest_category:string;difficulty:string;role_eligibility:string[];requirements:unknown[];rewards:{items:Reward[]};cooldown_seconds:number;active:boolean;version:number};
+type Progress={assignment_id:string;completion_status:string;current_progress:Record<string,number>;evidence?:{type:string;reference:string}[]};
+type LevelRule={_id:string;level:number;required_total_xp:number;status:string};
 type Assignment={_id:string;quest_id:string;target_type:string;target_id:string;status:string;expires_at:string|null;assigned_at:string};
 type Data={operator:boolean;player?:{displayName:string;activeRole:string;level:number;totalXp:number;nextLevelXp:number|null};quests:Quest[];assignments:Assignment[];progress?:Progress[];levels?:LevelRule[]};
 const categories=["DAILY_CHECK_IN","TRAINING","QUALIFYING_PRACTICE","OVERTAKING","DEFENSE","TYRE_MANAGEMENT","CONSISTENCY","RACE_START","WET_WEATHER_PRACTICE","RACE_ANALYSIS","CIRCUIT_ANALYSIS","TYRE_ANALYSIS","STRATEGY_ANALYSIS","RACE_ATTENDANCE","PRE_RACE_BRIEFING","POST_RACE_REPORT","WEEKLY_TARGET","ACHIEVEMENT_CHALLENGE","COMMUNITY_CONTRIBUTION","TEAM_ROSTER_CONTRACT","TEAM_RACE_PREPARATION","TEAM_R_AND_D","TEAM_STRATEGY","TEAM_SPONSORSHIP","TEAM_COMMERCIAL","TEAM_DEVELOPMENT","TEAM_CASHFLOW","TEAM_ADMIN_COMPLIANCE"];
