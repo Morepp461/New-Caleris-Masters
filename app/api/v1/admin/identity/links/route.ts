@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
+import type { Document } from "mongodb";
 import { getMongoClient, getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { getSessionPrincipal } from "@/lib/identity/session";
@@ -13,7 +14,7 @@ import { assertSameOrigin } from "@/lib/server/csrf";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type StringIdDocument = { _id: string; [key: string]: any };
+type StringIdDocument = Document & { _id: string };
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   assertSameOrigin(request);
