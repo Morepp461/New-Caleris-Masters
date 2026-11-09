@@ -82,6 +82,8 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
    const owner=await db.collection<Doc>("players").findOne({_id:team.owner_player_id,account_status:"ACTIVE",active_role:"TEAM_OWNER"});
    if(!owner||!quest.role_eligibility.includes("TEAM_OWNER"))throw fail("QUEST_INELIGIBLE","Team Owner role is not eligible for this quest.");
   }
+  const activeAssignment=await db.collection<Doc>("quest_assignments").findOne({quest_id:questId,target_type:targetType,target_id:targetId,status:{$in:["ASSIGNED","IN_PROGRESS","REVIEW_REQUIRED","COMPLETED"]}});
+  if(activeAssignment)throw fail("QUEST_ASSIGNMENT_EXISTS","An active assignment for this quest and target already exists.");
   const stamp=now();
   let recurrenceKey=typeof body.recurrenceKey==="string"?body.recurrenceKey:null;
   if(quest.recurrence==="DAILY"||quest.recurrence==="WEEKLY"){
