@@ -5,7 +5,7 @@ Cluster: `New-Caleris-Masters`
 Method: MongoDB `explain(find)`, verbosity `queryPlanner`, limit 5  
 Dataset at inspection: empty domain collections.
 
-All 33 query shapes inspected directly against the pre-migration Development database selected an `IXSCAN` winning plan (with FETCH/LIMIT as applicable). A repeatable post-migration verifier now covers 36 patterns, including the new unique division-name, race-round, and achievement indexes. This confirms index selection for the documented predicates. It does not claim latency/performance characteristics; the database is empty and executionStats/load testing belongs to later QA.
+All 33 query shapes inspected directly against the pre-migration Development database selected an `IXSCAN` winning plan (with FETCH/LIMIT as applicable). A repeatable post-migration verifier now covers 38 patterns, including the new unique division-name, race-round, and achievement indexes. This confirms index selection for the documented predicates. It does not claim latency/performance characteristics; the database is empty and executionStats/load testing belongs to later QA.
 
 | Collection | Query shape | Selected index | Result |
 |---|---|---|---|
@@ -52,6 +52,9 @@ The source dictionary defines the race-event round key as unique for `season_id 
 
 The migration also adds the source-required unique `divisions.name` index. The query plan above records the pre-migration database state; the workflow verifies the post-migration index options using the MongoDB driver.
 
+
+| team_memberships | player_id + ACTIVE | uq_team_memberships_active_player | Pending post-migration verifier |
+| team_contracts | driver_player_id + ACTIVE | uq_team_contracts_active_driver | Pending post-migration verifier |
 
 ## Repeatable verification
 
