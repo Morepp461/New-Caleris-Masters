@@ -30,7 +30,7 @@ export default function Home() {
           <a href="#divisions">DIVISIONS</a>
           <a href="#systems">GAME SYSTEMS</a>
         </nav>
-        <a className="login-link" href="#access">PLAYER ACCESS <span>↗</span></a>
+        <a className="login-link" href="/api/v1/auth/discord/start">PLAYER ACCESS <span>↗</span></a>
       </header>
 
       <section className="hero" id="top">
