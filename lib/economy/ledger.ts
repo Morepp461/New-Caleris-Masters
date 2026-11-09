@@ -88,9 +88,9 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
     const source = await db.collection<Doc>("economy_accounts").findOne({ _id: input.accountId, owner_type: input.ownerType, owner_id: input.ownerId, currency: "CP", status: "ACTIVE" }, { session });
     if (!source) throw new AppError("OWNER_WALLET_NOT_FOUND", "The active CP wallet for this token owner was not found.", 404);
     const ruleset = await db.collection<Doc>("economy_rulesets").findOne({ season_id: input.seasonId, status: "ACTIVE" }, { sort: { version: -1 }, session });
-    const validation = validateEconomyRules(ruleset ?? {});
-    if (!ruleset || !validation.ok || !validation.value.token_purchase_rules.enabled) throw new AppError("TOKEN_PURCHASE_DISABLED", "Development token purchases are not enabled by an approved economy ruleset.", 403);
-    const rule = validation.value.token_purchase_rules, price = input.tokenType === "DDP" ? rule.ddp_price_minor : rule.tdp_price_minor;
+    const validation = validateEconomyRules(ruleset ?? {}) as { ok: boolean; value?: EconomyRules; reason?: string };
+    if (!ruleset || !validation.ok || !validation.value?.token_purchase_rules.enabled) throw new AppError("TOKEN_PURCHASE_DISABLED", "Development token purchases are not enabled by an approved economy ruleset.", 403);
+    const rule = validation.value!.token_purchase_rules, price = input.tokenType === "DDP" ? rule.ddp_price_minor : rule.tdp_price_minor;
     if (amount < Number(rule.minimum_purchase) || !Number.isSafeInteger(price) || price <= 0 || !rule.system_account_id) throw new AppError("TOKEN_PURCHASE_INVALID", "Token purchase does not satisfy the active pricing rules.", 400);
     const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
     if (existing) return { transactionId: existing._id, replayed: true };
