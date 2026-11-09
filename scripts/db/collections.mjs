@@ -69,8 +69,44 @@ export const UUID_BASELINE_VALIDATOR = {
     properties: {
       _id: {
         bsonType: "string",
-        description: "Immutable application UUID string, per Database Schema & Data Dictionary v1.0.",
+        pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+        description: "Immutable UUID v4 string, per Database Schema & Data Dictionary v1.0.",
       },
     },
   },
 };
+
+export const NATURAL_KEY_BASELINE_VALIDATOR = {
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["_id"],
+    properties: {
+      _id: {
+        bsonType: "string",
+        minLength: 1,
+        description: "Natural string key, as specified for game_settings._id.",
+      },
+    },
+  },
+};
+
+export const MIGRATION_ID_BASELINE_VALIDATOR = {
+  $jsonSchema: {
+    bsonType: "object",
+    required: ["_id"],
+    properties: {
+      _id: {
+        bsonType: "string",
+        minLength: 1,
+        description: "Versioned migration identifier.",
+      },
+    },
+  },
+};
+
+export const COLLECTION_VALIDATORS = Object.fromEntries(
+  DOMAIN_COLLECTIONS.map((name) => [
+    name,
+    name === "game_settings" ? NATURAL_KEY_BASELINE_VALIDATOR : UUID_BASELINE_VALIDATOR,
+  ]),
+);
