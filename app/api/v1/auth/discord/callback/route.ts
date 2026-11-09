@@ -96,6 +96,7 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
         provider_username: profile.username,
         provider_avatar_url: avatarUrl,
         last_authenticated_at: now,
+        updated_at: now,
       },
     },
   );
