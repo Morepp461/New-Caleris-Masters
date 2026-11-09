@@ -45,6 +45,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
   const account = await db.collection("auth_accounts").findOne({
     provider: "discord",
     provider_user_id: profile.id,
+    status: { $ne: "REVOKED" },
   });
 
   if (!account) {
@@ -77,6 +78,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
     {
       $set: {
         provider_email: profile.email,
+        status: "ACTIVE",
         provider_username: profile.username,
         provider_avatar_url: avatarUrl,
         last_authenticated_at: now,
