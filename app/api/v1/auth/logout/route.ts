@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { apiHandler } from "@/lib/server/api-handler";
 import { clearSessionCookie, getSessionPrincipal, revokeCurrentSession, writeAuthAudit } from "@/lib/identity/session";
+import { assertSameOrigin } from "@/lib/server/csrf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = apiHandler(async (request: NextRequest) => {
-  const origin = request.headers.get("origin");
-  if (origin && origin !== request.nextUrl.origin) {
-    return NextResponse.json({ success: false, error: { code: "INVALID_ORIGIN", message: "Request origin is not allowed." } }, { status: 403 });
-  }
+  assertSameOrigin(request);
   const principal = await getSessionPrincipal(request);
   await revokeCurrentSession(request);
   if (principal) {
