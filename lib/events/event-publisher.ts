@@ -1,0 +1,3 @@
+import type{Db,ClientSession}from"mongodb";import{appendEventWithOutbox}from"./mongo-event-store";import type{DomainEvent}from"./contracts";
+export type EventInput<T extends Record<string,unknown>>=Omit<DomainEvent<T>,"_id"|"recorded_at">;export interface EventPublisher{publish<T extends Record<string,unknown>>(input:EventInput<T>,session:ClientSession):Promise<void>;}
+export class MongoOutboxEventPublisher implements EventPublisher{constructor(private readonly db:Db){}async publish<T extends Record<string,unknown>>(input:EventInput<T>,session:ClientSession){await appendEventWithOutbox(this.db,session,input);}}

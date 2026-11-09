@@ -1,0 +1,5 @@
+import {ValidationError} from "./errors";
+export type Validator<T>=(value:unknown)=>T;
+export function validate<T>(value:unknown,validator:Validator<T>):T{try{return validator(value);}catch(error){if(error instanceof ValidationError)throw error;throw new ValidationError({reason:error instanceof Error?error.message:"Invalid request."});}}
+export function requireJsonObject(value:unknown):Record<string,unknown>{if(!value||typeof value!=="object"||Array.isArray(value))throw new ValidationError({body:"Expected a JSON object."});return value as Record<string,unknown>;}
+export function readString(value:unknown,field:string,options:{min?:number;max?:number}={}):string{if(typeof value!=="string")throw new ValidationError({[field]:"Must be a string."});const result=value.trim();if(result.length<(options.min??1)||result.length>(options.max??200))throw new ValidationError({[field]:`Length must be between ${options.min??1} and ${options.max??200}.`});return result;}

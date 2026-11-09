@@ -1,0 +1,1 @@
+import{NextRequest}from"next/server";import{getRequestMeta}from"@/lib/server/request-context";import{success}from"@/lib/server/response";import{apiHandler}from"@/lib/server/api-handler";export const runtime="nodejs";export const dynamic="force-dynamic";export const GET=apiHandler((request:NextRequest,_context,meta)=>success({status:"LIVE"},meta),{scope:"health-live"});

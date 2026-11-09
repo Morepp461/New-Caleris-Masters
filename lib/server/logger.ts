@@ -1,0 +1,5 @@
+type LogContext=Record<string,string|number|boolean|null|undefined>;
+const REDACT=/authorization|cookie|token|secret|password|credential|mongodb_uri/i;
+function sanitize(value:unknown):unknown{if(Array.isArray(value))return value.map(sanitize);if(!value||typeof value!=="object")return value;return Object.fromEntries(Object.entries(value).map(([key,item])=>[key,REDACT.test(key)?"[REDACTED]":sanitize(item)]));}
+function write(level:"info"|"warn"|"error",message:string,context:LogContext={}){const record={timestamp:new Date().toISOString(),level,message,...sanitize(context) as object};const line=JSON.stringify(record);if(level==="error")console.error(line);else if(level==="warn")console.warn(line);else console.info(line);}
+export const logger={info:(message:string,context?:LogContext)=>write("info",message,context),warn:(message:string,context?:LogContext)=>write("warn",message,context),error:(message:string,context?:LogContext)=>write("error",message,context)};
