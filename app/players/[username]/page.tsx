@@ -1,0 +1,9 @@
+"use client";
+import Link from "next/link";
+import {useEffect,useState} from "react";
+type PublicProfile={username:string;display_name?:string;avatar_url?:string|null;active_role?:string;level?:number;driver_name?:string;driver_number?:number|null};
+export default function PublicPlayerPage({params}:{params:Promise<{username:string}>}){
+ const[p,setP]=useState<PublicProfile|null>(null),[loading,setLoading]=useState(true);
+ useEffect(()=>{let live=true;params.then(({username})=>fetch("/api/v1/players/"+encodeURIComponent(username)+"/profile",{cache:"no-store"})).then(async r=>(await r.json()).data?.profile as PublicProfile|null).then(d=>{if(live)setP(d);}).finally(()=>{if(live)setLoading(false);});return()=>{live=false;};},[params]);
+ return <main className="profile-shell"><header className="profile-header"><Link className="brand" href="/"><span className="brand-mark">C</span><span className="brand-name">CALERIS <b>MASTERS</b></span></Link><Link className="profile-link" href="/">BACK TO WORLD ↗</Link></header>{loading?<p className="profile-message">Loading player…</p>:p?<section className="profile-card public-profile-card"><div className="section-kicker">CALERIS MASTERS / PLAYER DIRECTORY</div><div className="profile-summary"><div className="profile-avatar">{p.avatar_url?<img src={p.avatar_url} alt=""/>:"C"}</div><div><strong>{p.display_name||p.username}</strong><span>@{p.username}</span></div></div>{p.active_role&&<div className="public-profile-row"><span>ACTIVE ROLE</span><b>{p.active_role.replaceAll("_"," ")}</b></div>}{p.level!==undefined&&<div className="public-profile-row"><span>ACCOUNT LEVEL</span><b>{p.level}</b></div>}{p.driver_name&&<div className="public-profile-row"><span>DRIVER</span><b>{p.driver_name}{p.driver_number?" · #"+p.driver_number:""}</b></div>}</section>:<p className="profile-message">Player profile is unavailable or private.</p>}</main>;
+}

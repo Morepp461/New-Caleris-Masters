@@ -1,0 +1,82 @@
+name: Phase 04 Development Database Migration
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "scripts/db/migrate-phase-04.mjs"
+      - ".github/workflows/phase-04-dev-migration.yml"
+  workflow_dispatch:
+    inputs:
+      confirm_development_database:
+        description: "Ketik RUN-DEV untuk mengizinkan migrasi ke caleris_masters_dev"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: phase-04-dev-migration
+  cancel-in-progress: false
+
+jobs:
+  migrate-development:
+    name: Apply and verify Phase 04 migration (development only)
+    if: github.event_name == 'push' || inputs.confirm_development_database == 'RUN-DEV'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" ]]; then
+            echo "::error::Repository secret MONGODB_URI_DEV is missing."
+            exit 1
+          fi
+          if [[ "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::This workflow is restricted to caleris_masters_dev."
+            exit 1
+          fi
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+      - name: Apply Phase 04 migration
+        run: npm run db:migrate:phase-04
+      - name: Verify migration and permissions
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          const client = new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 2, serverSelectionTimeoutMS: 10000 });
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+            const migration = await db.collection("schema_migrations").findOne({ _id: "003-player-profile-visibility-and-role-foundation" });
+            assert.ok(migration, "Phase 04 migration record missing.");
+            assert.equal(migration.database, "caleris_masters_dev");
+            const playerInfo = await db.listCollections({ name: "players" }).next();
+            assert.ok(playerInfo?.options?.validator?.$jsonSchema?.properties?.profile_visibility, "Profile visibility validator missing.");
+            const policyIndexes = await db.collection("role_permission_policies").listIndexes().toArray();
+            assert.ok(policyIndexes.some((x) => x.name === "uq_role_permission_scope"), "Role permission unique index missing.");
+            for (const role of ["DRIVER", "TEAM_OWNER"]) {
+              for (const key of ["profile.view_own", "profile.edit_own"]) {
+                assert.ok(await db.collection("role_permission_policies").findOne({ role, permission_key: key, scope: "OWN", allowed: true }), "Missing " + role + " policy " + key);
+              }
+            }
+            assert.equal(await db.collection("players").countDocuments({}), 0, "Migration must not seed players.");
+            assert.equal(await db.collection("teams").countDocuments({}), 0, "Migration must not seed teams.");
+            console.log("Verified Phase 04 migration, profile validator, permissions, and zero-seed baseline.");
+          } finally { await client.close(); }
+          NODE
