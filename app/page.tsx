@@ -17,9 +17,22 @@ const pillars = [
   { number: "04", title: "MAKE YOUR MOVE", text: "Negotiate contracts, pursue sponsors, and make decisions that change the paddock." },
 ];
 
-export default function Home() {
+const authMessages: Record<string, string> = {
+  success: "Discord login berhasil. Session Caleris Masters sudah aktif.",
+  "account-not-provisioned": "Akun Discord belum ditautkan ke player. Hubungi operator untuk provisioning.",
+  "account-unavailable": "Akses player sedang tidak aktif. Hubungi operator.",
+  "oauth-denied": "Proses login dibatalkan atau verifikasi OAuth tidak valid.",
+  "oauth-failed": "Discord belum dapat memverifikasi login. Silakan coba kembali.",
+  "not-configured": "Discord login belum dikonfigurasi oleh pengelola Caleris Masters.",
+};
+
+export default async function Home({ searchParams }: { searchParams: Promise<{ auth?: string }> }) {
+  const params = await searchParams;
+  const authMessage = params.auth ? authMessages[params.auth] : undefined;
+
   return (
     <main>
+      {authMessage && <div className="auth-notice" role="status">{authMessage}</div>}
       <header className="topbar">
         <a className="brand" href="#top" aria-label="Caleris Masters home">
           <span className="brand-mark">C</span>
