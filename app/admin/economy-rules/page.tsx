@@ -44,7 +44,7 @@ function Field({name,value,path,onChange}:{name:string;value:unknown;path:string
   const isObject=!!value&&typeof value==="object"&&!Array.isArray(value);
   if(isObject){
     const entries=Object.entries(value as Record<string,unknown>);
-    const dynamic=["tariffs","roleUpgradeFees","teamRegistrationFees","enabledWorkflows","driverByLicense"].includes(name);
+    const dynamic=["tariffs","roleUpgradeFees","teamRegistrationFees","enabledWorkflows"].includes(name);
     return <fieldset className="rules-fieldset"><legend>{label(name)}</legend><div className={dynamic?"rules-dynamic-grid":"rules-fields-grid"}>
       {entries.map(([key,child])=><Field key={key} name={key} value={child} path={[...path,key]} onChange={onChange}/>)}
     </div>
