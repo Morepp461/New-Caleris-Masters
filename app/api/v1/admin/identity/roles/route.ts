@@ -1,6 +1,5 @@
 import { randomUUID } from "node:crypto";
 import { NextRequest } from "next/server";
-import type { Document } from "mongodb";
 import { getMongoClient, getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { getSessionPrincipal } from "@/lib/identity/session";
@@ -16,7 +15,7 @@ const ALLOWED_ROLES = new Set(["DRIVER", "PRINCIPAL", "OWNER", "AGENT", "JOURNAL
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type StringIdDocument = Document & { _id: string };
+type StringIdDocument = { _id: string; [key: string]: unknown };
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
   assertSameOrigin(request);
