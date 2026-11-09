@@ -3,7 +3,7 @@ import { Decimal128, Long, type ClientSession, type Db } from "mongodb";
 import { getMongoClient, getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { AppError } from "@/lib/server/errors";
-import { assertBalancedPostings, canPostMoneyTransfer, toMinorUnits, validateIdempotencyKey, validateReason, validateAccountOwner, validateEconomyRules, TOKEN_TYPES } from "./policy.mjs";
+import { assertBalancedPostings, canPostMoneyTransfer, toMinorUnits, validateIdempotencyKey, validateReason, validateAccountOwner, validateEconomyRules, TOKEN_TYPES, sameIdempotentTransfer, assertBalanceProjectionMatches } from "./policy.mjs";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc = { _id: string; [key: string]: any };
@@ -37,7 +37,7 @@ export async function postMoneyTransfer(input: TransferInput) {
   return withMongoTransaction(client, async (session) => {
     const transactions = db.collection<Doc>("ledger_transactions"), prior = await transactions.findOne({ idempotency_key: key }, { session });
     if (prior) {
-      if (prior.source_account_id !== input.sourceAccountId || prior.destination_account_id !== input.destinationAccountId || Number(prior.amount_minor) !== amount || prior.category !== input.category || prior.currency !== "CP" || prior.reason !== reason) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was already used for a different transaction.", 409);
+      if (!sameIdempotentTransfer(prior, { sourceAccountId: input.sourceAccountId, destinationAccountId: input.destinationAccountId, amountMinor: amount, category: input.category, currency: "CP", reason })) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was already used for a different transaction.", 409);
       return { transactionId: prior._id, status: prior.status, replayed: true };
     }
     const accounts = db.collection<Doc>("economy_accounts");
@@ -178,7 +178,7 @@ export async function closeEconomyPeriod(input: { periodId: string; actorId: str
       const opening = BigInt(String(row?.opening_debit ?? 0)) - BigInt(String(row?.opening_credit ?? 0));
       const periodDebit = BigInt(String(row?.period_debit ?? 0)), periodCredit = BigInt(String(row?.period_credit ?? 0));
       const closing = BigInt(String(row?.closing_debit ?? 0)) - BigInt(String(row?.closing_credit ?? 0));
-      if (closing !== BigInt(String(account.available_balance_minor))) throw new AppError("BALANCE_CACHE_MISMATCH", "Ledger-derived balance does not match the account projection; period close is blocked.", 409, { accountId: account._id });
+      try { assertBalanceProjectionMatches(closing, account.available_balance_minor); } catch { throw new AppError("BALANCE_CACHE_MISMATCH", "Ledger-derived balance does not match the account projection; period close is blocked.", 409, { accountId: account._id }); }
       return { accountId: account._id, ownerType: account.owner_type, ownerId: account.owner_id, currency: account.currency, openingBalanceMinor: opening.toString(), periodDebitMinor: periodDebit.toString(), periodCreditMinor: periodCredit.toString(), closingBalanceMinor: closing.toString() };
     });
     const report = { transactionCount: await db.collection<Doc>("ledger_transactions").countDocuments({ status: "POSTED", created_at: range }, { session }), reconciliation, financialStatements, closedBy: input.actorId, reason, generatedAt: now() };
