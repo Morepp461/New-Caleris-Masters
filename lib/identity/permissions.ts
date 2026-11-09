@@ -1,6 +1,7 @@
 import { AppError } from "@/lib/server/errors";
 import type { SessionPrincipal } from "./session";
 import { getMongoDatabase } from "@/lib/db/mongodb";
+import { isRolePermissionAllowed } from "./policy.mjs";
 
 export async function hasPermission(
   principal: SessionPrincipal,
@@ -20,7 +21,7 @@ export async function hasPermission(
       scope,
     }),
   ]);
-  return Boolean(permission && policy);
+  return isRolePermissionAllowed(permission, policy, scope);
 }
 
 export async function requirePermission(
