@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { canAmendRuleset, nextRulesetVersion, normalizeSeasonStatus, transitionEvent, transitionSeason, validateCalendarRoundCount, validateRuleset } from "@/lib/competition/policy.mjs";
+import { buildSeasonConfigurationSnapshot, canAmendRuleset, nextRulesetVersion, normalizeSeasonStatus, transitionEvent, transitionSeason, validateCalendarRoundCount, validateRuleset } from "@/lib/competition/policy.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -99,7 +99,9 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const divisionId = readString(body.divisionId, "divisionId", { max: 64 });
     const division = await divisions.findOne({ _id: divisionId });
     if (!division) throw new AppError("DIVISION_NOT_FOUND", "Division not found.", 404);
-    const activeSeasons = await db.collection<Doc>("seasons").find({ status: { $in: ["PLANNED", "REGISTRATION", "ACTIVE"] } }, { projection: { _id: 1 } }).toArray();\n    const activeSeasonIds = activeSeasons.map((item) => item._id);\n    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection<Doc>("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection<Doc>("season_rulesets").findOne({ division_id: divisionId, season_id: { $in: activeSeasonIds }, status: "LOCKED" }), db.collection<Doc>("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);
+    const activeSeasons = await db.collection<Doc>("seasons").find({ status: { $in: ["PLANNED", "REGISTRATION", "ACTIVE"] } }, { projection: { _id: 1 } }).toArray();
+    const activeSeasonIds = activeSeasons.map((item) => item._id);
+    const [activeTeams, activeSeason, activeEvents] = await Promise.all([db.collection<Doc>("teams").findOne({ division_id: divisionId, status: "ACTIVE" }), db.collection<Doc>("season_rulesets").findOne({ division_id: divisionId, season_id: { $in: activeSeasonIds }, status: "LOCKED" }), db.collection<Doc>("race_events").findOne({ division_id: divisionId, status: { $in: ["SCHEDULED", "REGISTRATION_LOCKED", "READY", "RUNNING"] } })]);
     if (activeTeams || activeSeason || activeEvents) throw fail("DIVISION_IN_USE", "Division has active teams, locked regulations or open race events.");
     await divisions.updateOne({ _id: divisionId }, { $set: { status: "ARCHIVED", updated_at: now() } });
     await audit(db, actorId, "DIVISION_ARCHIVED", "DIVISION", divisionId, { status: division.status }, { status: "ARCHIVED" });
@@ -119,22 +121,51 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const season = await seasons.findOne({ _id: seasonId }); if (!season) throw new AppError("SEASON_NOT_FOUND", "Season not found.", 404);
     const current = normalizeSeasonStatus(String(season.status));
     const decision = transitionSeason(current, target); if (!decision.ok) throw fail(decision.reason!, "Invalid season lifecycle transition.");
+    let configurationSnapshot: Record<string, unknown> | undefined;
     if (target === "ACTIVE") {
       const participating = await db.collection<Doc>("season_rulesets").find({ season_id: seasonId, status: "LOCKED" }).toArray();
-      const calendars = await db.collection<Doc>("race_calendars").find({ season_id: seasonId, status: { $ne: "ARCHIVED" } }).toArray();
-      if (!participating.length || !calendars.length || calendars.some((item) => item.status !== "ACTIVE")) throw fail("SEASON_SETUP_INCOMPLETE", "Activation requires at least one locked division ruleset and an active calendar for each participating division.");
-      const divisionIds = new Set(participating.map((item) => item.division_id));
-      if (calendars.some((item) => !divisionIds.has(item.division_id))) throw fail("SEASON_SETUP_INCOMPLETE", "Every participating calendar must have a locked ruleset.");
+      const calendars = await db.collection<Doc>("race_calendars").find({ season_id: seasonId, status: "ACTIVE" }).toArray();
+      if (!participating.length || !calendars.length) throw fail("SEASON_SETUP_INCOMPLETE", "Activation requires locked division rulesets and active calendars.");
+      const divisionIds = [...new Set(participating.map((item) => String(item.division_id)))];
+      if (calendars.some((item) => !divisionIds.includes(String(item.division_id)))) throw fail("SEASON_SETUP_INCOMPLETE", "Every participating calendar must have a locked ruleset.");
+      const calendarIds = calendars.map((item) => item._id);
+      const events = await db.collection<Doc>("race_events").find({ calendar_id: { $in: calendarIds } }).sort({ calendar_id: 1, round_number: 1 }).toArray();
+      for (const calendar of calendars) {
+        const rounds = events.filter((item) => item.calendar_id === calendar._id);
+        if (rounds.length !== Number(calendar.total_rounds)) throw fail("SEASON_CALENDAR_INCOMPLETE", "Every calendar must contain exactly its configured number of race events.");
+      }
+      const [divisionRecords, teams] = await Promise.all([
+        db.collection<Doc>("divisions").find({ _id: { $in: divisionIds } }).toArray(),
+        db.collection<Doc>("teams").find({ division_id: { $in: divisionIds }, status: "ACTIVE" }).toArray(),
+      ]);
+      const teamIds = teams.map((item) => item._id);
+      const drivers = teamIds.length
+        ? await db.collection<Doc>("driver_profiles").find({ active_team_id: { $in: teamIds }, profile_status: "ACTIVE" }).toArray()
+        : [];
+      const eventIds = events.map((item) => item._id);
+      const entries = eventIds.length
+        ? await db.collection<Doc>("race_entries").find({ race_event_id: { $in: eventIds } }).toArray()
+        : [];
+      configurationSnapshot = buildSeasonConfigurationSnapshot({
+        divisions: divisionRecords,
+        calendars,
+        rulesets: participating,
+        teams,
+        drivers,
+        events,
+        entries,
+      });
     }
     const stamp = now();
-    await seasons.updateOne({ _id: seasonId, status: season.status }, { $set: { status: target, ...(target === "ACTIVE" ? { activated_at: stamp, start_date: stamp } : {}), ...(target === "COMPLETED" || target === "ARCHIVED" ? { closed_at: stamp, end_date: stamp } : {}), updated_at: stamp } });
+    await seasons.updateOne({ _id: seasonId, status: season.status }, { $set: { status: target, ...(target === "ACTIVE" ? { activated_at: stamp, start_date: stamp, configuration_snapshot: configurationSnapshot, configuration_snapshot_created_at: stamp } : {}), ...(target === "COMPLETED" || target === "ARCHIVED" ? { closed_at: stamp, end_date: stamp } : {}), updated_at: stamp } });
     await audit(db, actorId, "SEASON_STATUS_CHANGED", "SEASON", seasonId, { status: season.status }, { status: target });
     return success({ seasonId, status: target }, meta);
   }
   if (action === "CREATE_RULESET" || action === "AMEND_RULESET") {
     const seasonId = readString(body.seasonId, "seasonId", { max: 64 }), divisionId = readString(body.divisionId, "divisionId", { max: 64 });
     const season = await seasons.findOne({ _id: seasonId }); const division = await divisions.findOne({ _id: divisionId, status: { $ne: "ARCHIVED" } });
-    if (!season || !division) throw new AppError("COMPETITION_REFERENCE_NOT_FOUND", "Season or division was not found.", 404);\n    if (["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("SEASON_CLOSED", "Closed seasons cannot receive new rulesets.");
+    if (!season || !division) throw new AppError("COMPETITION_REFERENCE_NOT_FOUND", "Season or division was not found.", 404);
+    if (["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("SEASON_CLOSED", "Closed seasons cannot receive new rulesets.");
     const rules = { calendar_rules: body.calendarRules, scoring_rules: body.scoringRules, penalty_rules: body.penaltyRules, race_rules: body.raceRules, economy_rules: body.economyRules, eligibility_rules: body.eligibilityRules };
     const validation = validateRuleset(rules); if (!validation.ok) throw new AppError(validation.reason!, "Ruleset configuration is incomplete or invalid.", 400);
     const previous = await db.collection<Doc>("season_rulesets").find({ season_id: seasonId, division_id: divisionId }).sort({ version: -1 }).toArray();
@@ -163,7 +194,8 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
     const [season, division] = await Promise.all([seasons.findOne({ _id: ruleset.season_id }), divisions.findOne({ _id: ruleset.division_id, status: { $ne: "ARCHIVED" } })]);
     if (!season || !division || ["COMPLETED", "ARCHIVED", "CANCELLED"].includes(String(season.status))) throw fail("RULESET_SCOPE_CLOSED", "Ruleset scope is not available.");
     await db.collection<Doc>("season_rulesets").updateOne({ _id: rulesetId, status: "DRAFT" }, { $set: { status: "LOCKED", approved_by: actorId, approved_at: now(), updated_at: now() } });
-    await db.collection<Doc>("race_calendars").updateMany({ season_id: ruleset.season_id, division_id: ruleset.division_id, status: "ACTIVE" }, { $set: { ruleset_id: rulesetId, updated_at: now() } });\n    await audit(db, actorId, "RULESET_LOCKED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { status: "LOCKED" });
+    await db.collection<Doc>("race_calendars").updateMany({ season_id: ruleset.season_id, division_id: ruleset.division_id, status: "ACTIVE" }, { $set: { ruleset_id: rulesetId, updated_at: now() } });
+    await audit(db, actorId, "RULESET_LOCKED", "SEASON_RULESET", rulesetId, { status: "DRAFT" }, { status: "LOCKED" });
     return success({ rulesetId, status: "LOCKED" }, meta);
   }
   if (action === "CREATE_CALENDAR") {
