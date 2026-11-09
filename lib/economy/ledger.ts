@@ -35,7 +35,7 @@ export async function postMoneyTransfer(input: TransferInput) {
   return withMongoTransaction(client, async (session) => {
     const transactions = db.collection<Doc>("ledger_transactions"), prior = await transactions.findOne({ idempotency_key: key }, { session });
     if (prior) {
-      if (prior.source_account_id !== input.sourceAccountId || prior.destination_account_id !== input.destinationAccountId || Number(prior.amount_minor) !== amount) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was already used for a different transaction.", 409);
+      if (prior.source_account_id !== input.sourceAccountId || prior.destination_account_id !== input.destinationAccountId || Number(prior.amount_minor) !== amount || prior.category !== input.category || prior.currency !== "CP" || prior.reason !== reason) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was already used for a different transaction.", 409);
       return { transactionId: prior._id, status: prior.status, replayed: true };
     }
     const accounts = db.collection<Doc>("economy_accounts");
@@ -67,7 +67,7 @@ export async function grantDevelopmentTokens(input: { ownerType: "PLAYER" | "TEA
   return withMongoTransaction(client, async (session) => {
     const tx = db.collection<Doc>("development_transactions"), prior = await tx.findOne({ idempotency_key: key }, { session });
     if (prior) {
-      if (prior.owner_id !== input.ownerId || prior.token_type !== input.tokenType || Number(prior.amount) !== amount) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was used for a different token movement.", 409);
+      if (prior.owner_type !== input.ownerType || prior.owner_id !== input.ownerId || prior.token_type !== input.tokenType || Number(prior.amount) !== amount || prior.source_type !== (input.sourceType ?? "OPERATOR_ADJUSTMENT")) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key was used for a different token movement.", 409);
       return { transactionId: prior._id, balance: String(prior.balance_after), replayed: true };
     }
     const wallets = db.collection<Doc>("development_wallets");
@@ -92,10 +92,13 @@ export async function purchaseDevelopmentTokens(input: { ownerType: "PLAYER" | "
     if (!ruleset || !validation.ok || !validation.value?.token_purchase_rules.enabled) throw new AppError("TOKEN_PURCHASE_DISABLED", "Development token purchases are not enabled by an approved economy ruleset.", 403);
     const rule = validation.value!.token_purchase_rules, price = input.tokenType === "DDP" ? rule.ddp_price_minor : rule.tdp_price_minor;
     if (amount < Number(rule.minimum_purchase) || typeof price !== "number" || !Number.isSafeInteger(price) || price <= 0 || !rule.system_account_id) throw new AppError("TOKEN_PURCHASE_INVALID", "Token purchase does not satisfy the active pricing rules.", 400);
-    const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
-    if (existing) return { transactionId: existing._id, replayed: true };
     const cost = amount * Number(price);
     if (!Number.isSafeInteger(cost) || cost <= 0) throw new AppError("TOKEN_PRICE_OVERFLOW", "Configured token price exceeds supported integer range.", 400);
+    const existing = await db.collection<Doc>("ledger_transactions").findOne({ idempotency_key: key }, { session });
+    if (existing) {
+      if (existing.category !== input.tokenType + "_PURCHASE" || existing.source_account_id !== input.accountId || existing.destination_account_id !== rule.system_account_id || Number(existing.amount_minor) !== cost) throw new AppError("IDEMPOTENCY_CONFLICT", "Idempotency key belongs to a different economy transaction.", 409);
+      return { transactionId: existing._id, replayed: true };
+    }
     const result = await postMoneyTransferInSession(db, session, { sourceAccountId: input.accountId, destinationAccountId: rule.system_account_id, amountMinor: cost, category: input.tokenType + "_PURCHASE", reason: input.tokenType + " purchase under approved economy ruleset " + ruleset.version + ".", actorId: input.actorId, idempotencyKey: key, rulesetId: ruleset._id, rulesetVersion: ruleset.version });
     const token = await grantTokensInSession(db, session, { ownerType: input.ownerType, ownerId: input.ownerId, tokenType: input.tokenType, amount, actorId: input.actorId, idempotencyKey: key + ":TOKEN", sourceId: result.transactionId, rulesetVersion: ruleset.version });
     return { transactionId: result.transactionId, tokenTransactionId: token.transactionId, tokenBalance: token.balance, costMinor: cost, replayed: false };
@@ -285,5 +288,20 @@ export async function reverseMoneyTransaction(input: { transactionId: string; ac
     referenceId: original._id,
     rulesetId: original.ruleset_id ?? undefined,
     rulesetVersion: original.ruleset_version ?? undefined,
+  });
+}
+
+export async function activateEconomyRuleset(input: { rulesetId: string; actorId: string }) {
+  const db = await getMongoDatabase(), client = await getMongoClient();
+  return withMongoTransaction(client, async (session) => {
+    const target = await db.collection<Doc>("economy_rulesets").findOne({ _id: input.rulesetId, status: "DRAFT" }, { session });
+    if (!target) throw new AppError("RULESET_NOT_DRAFT", "Only a draft economy ruleset can be activated.", 409);
+    const validation = validateEconomyRules(target);
+    if (!validation.ok) throw new AppError("INVALID_ECONOMY_RULES", validation.reason ?? "Economy ruleset is invalid.", 400);
+    await db.collection<Doc>("economy_rulesets").updateMany({ season_id: target.season_id, status: "ACTIVE" }, { $set: { status: "SUPERSEDED", superseded_at: now(), updated_at: now() } }, { session });
+    const updated = await db.collection<Doc>("economy_rulesets").updateOne({ _id: target._id, status: "DRAFT" }, { $set: { status: "ACTIVE", activated_by: input.actorId, activated_at: now(), updated_at: now() } }, { session });
+    if (updated.modifiedCount !== 1) throw new AppError("RULESET_CONFLICT", "Ruleset changed during activation.", 409);
+    await audit(db, session, input.actorId, "ECONOMY_RULESET_ACTIVATED", "ECONOMY_RULESET", target._id, "Versioned economy ruleset activated; individual features retain their explicit enabled flags.", { seasonId: target.season_id, version: target.version });
+    return { rulesetId: target._id, status: "ACTIVE", rules: validation.value };
   });
 }
