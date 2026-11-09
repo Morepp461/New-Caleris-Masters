@@ -4,6 +4,7 @@ import { createPlayerSession, setSessionCookie, writeAuthAudit } from "@/lib/ide
 import {
   discordAvatarUrl,
   exchangeDiscordCode,
+  type DiscordProfile,
   getOAuthStateCookieName,
   verifyOAuthState,
 } from "@/lib/identity/discord-oauth";
@@ -34,7 +35,7 @@ export const GET = apiHandler(async (request: NextRequest) => {
 
   if (!stateValid || !code) return redirect("oauth-denied");
 
-  let profile;
+  let profile: DiscordProfile;
   try {
     profile = await exchangeDiscordCode(code);
   } catch {
