@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow } from "@/lib/progression/policy.mjs";
+import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown, getUtcRecurrenceWindow, evaluateRequirements } from "@/lib/progression/policy.mjs";
 import { recordXpEvent } from "@/lib/progression/xp-service";
 
 export const runtime="nodejs";
@@ -23,7 +23,7 @@ export const GET=apiHandler(async(request:NextRequest,_context,meta)=>{
  if(!principal)throw new AppError("UNAUTHENTICATED","Authentication is required.",401);
  const db=await getMongoDatabase();
  if(principal.isOperator){
-  const [quests,assignments,levels]=await Promise.all([
+  const [quests,assignments,levels,progress]=await Promise.all([
    db.collection<Doc>("quests").find({}).sort({created_at:-1}).limit(200).toArray(),
    db.collection<Doc>("quest_assignments").find({}).sort({assigned_at:-1}).limit(200).toArray(),
    db.collection<Doc>("account_level_rules").find({}).sort({level:1,version:-1}).limit(200).toArray()
@@ -119,7 +119,12 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   const evidence=Array.isArray(body.evidence)?body.evidence.slice(0,10):[];
   if(quest.evidence_required&&evidence.length===0)throw new AppError("EVIDENCE_REQUIRED","Submit at least one evidence item.",400);
   const progress=await db.collection<Doc>("quest_progress").findOne({assignment_id:assignmentId});
-  const current=body.progress&&typeof body.progress==="object"&&!Array.isArray(body.progress)?body.progress:{};
+  const submitted=body.progress&&typeof body.progress==="object"&&!Array.isArray(body.progress)?body.progress:{};
+  const current:Record<string,number>={};
+  for(const requirement of quest.requirements??[]){
+   const value=Number((submitted as Record<string,unknown>)[String(requirement.key)]);
+   if(Number.isSafeInteger(value)&&value>=0)current[String(requirement.key)]=Math.min(value,Number(requirement.target));
+  }
   const idempotency=readString(body.idempotencyKey,"idempotencyKey",{min:8,max:128});
   if(progress?.last_submission_key===idempotency)return success({submitted:true,status:assignment.status},meta);
   const stamp=now();
@@ -135,6 +140,10 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   const assignment=await db.collection<Doc>("quest_assignments").findOne({_id:assignmentId,status:"REVIEW_REQUIRED"});
   const progress=await db.collection<Doc>("quest_progress").findOne({assignment_id:assignmentId});
   if(!assignment||!progress)throw new AppError("REVIEW_NOT_FOUND","Pending evidence review was not found.",404);
+  const quest=await db.collection<Doc>("quests").findOne({_id:assignment.quest_id});
+  if(!quest)throw new AppError("QUEST_NOT_FOUND","Quest definition was not found.",404);
+  const requirementCheck=evaluateRequirements(quest.requirements??[],progress.current_progress??{});
+  if(decision==="APPROVE"&&!requirementCheck.complete)throw fail("QUEST_REQUIREMENTS_NOT_MET","Submitted evidence does not satisfy every quest requirement.");
   const stamp=now(),approved=decision==="APPROVE";
   await db.collection<Doc>("quest_progress").updateOne({_id:progress._id,completion_status:"REVIEW_REQUIRED"},{$set:{evidence_verified:approved,completion_status:approved?"COMPLETED":"IN_PROGRESS",completed_at:approved?stamp:null,reviewed_by:actorId,reviewed_at:stamp,review_note:typeof body.note==="string"?body.note.slice(0,500):"",updated_at:stamp}});
   await db.collection<Doc>("quest_assignments").updateOne({_id:assignmentId,status:"REVIEW_REQUIRED"},{$set:{status:approved?"COMPLETED":"REJECTED",updated_at:stamp}});
@@ -163,7 +172,9 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
   if(assignment.target_type==="PLAYER"?assignment.target_id!==actorId:!team)throw new AppError("FORBIDDEN","This quest assignment does not belong to your account.",403);
   const quest=await db.collection<Doc>("quests").findOne({_id:assignment.quest_id});
   const progress=await db.collection<Doc>("quest_progress").findOne({assignment_id:assignmentId});
-  if(!quest||!progress)throw new AppError("QUEST_NOT_FOUND","Quest definition or progress was not found.",404);
+  const player=await db.collection<Doc>("players").findOne({_id:actorId,account_status:"ACTIVE"});
+  if(!quest||!progress||!player)throw new AppError("QUEST_NOT_FOUND","Quest definition, progress or active player was not found.",404);
+  if(!quest.role_eligibility.includes(player.active_role)|| (assignment.target_type==="TEAM"&&player.active_role!=="TEAM_OWNER"))throw new AppError("QUEST_INELIGIBLE","Your current role is not eligible to claim this reward.",403);
   const decision=canClaimAssignment({status:String(assignment.status),expiresAt:assignment.expires_at??null,evidenceRequired:Boolean(quest.evidence_required),evidenceVerified:Boolean(progress.evidence_verified)});
   if(!decision.ok)throw fail(decision.reason??"CLAIM_BLOCKED","Quest reward cannot be claimed.");
   const rewards=normalizeRewardGrant(quest.rewards?.items??[]);
