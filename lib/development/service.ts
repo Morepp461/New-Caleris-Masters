@@ -3,7 +3,7 @@ import { Long } from "mongodb";
 import { getMongoClient,getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { AppError } from "@/lib/server/errors";
-import { canUpgrade,createDefaultDevelopmentRules,validateDevelopmentRules,attributeKeys } from "./policy.mjs";
+import { canUpgrade,createDefaultDevelopmentRules,validateDevelopmentRules } from "./policy.mjs";
 type Doc={_id:string;[key:string]:any};
 const long=(n:number)=>Long.fromNumber(n);
 export async function createDevelopmentRuleset(seasonId:string,actorId:string){
@@ -70,5 +70,35 @@ export async function upgradeAttribute(input:{ownerType:"PLAYER"|"TEAM";ownerId:
   await db.collection<Doc>("audit_logs").insertOne({_id:randomUUID(),actor_type:"PLAYER",actor_id:input.actorId,action:"ATTRIBUTE_UPGRADED",target_type:input.ownerType,target_id:input.ownerId,reason:input.reason.trim(),after_state:{attributeKey:input.attributeKey,oldValue:current,newValue:input.newValue,tokenType,cost:decision.cost,rulesetVersion:rules.version},created_at:stamp,updated_at:stamp},{session});
   await db.collection<Doc>("outbox_events").insertOne({_id:randomUUID(),event_type:"ATTRIBUTE_UPGRADED",aggregate_type:input.ownerType,aggregate_id:input.ownerId,payload:{attributeKey:input.attributeKey,oldValue:current,newValue:input.newValue,seasonId:season._id,rulesetVersion:rules.version},status:"PENDING",attempts:0,next_attempt_at:stamp,created_at:stamp,updated_at:stamp},{session});
   return {transactionId,replayed:false,oldValue:current,newValue:input.newValue,tokenType,cost:decision.cost,rulesetVersion:rules.version};
+ });
+}
+
+export async function queueRndProject(input:{teamId:string;projectKey:string;actorId:string;idempotencyKey:string;reason:string}){
+ if(!/^[a-zA-Z0-9:_-]{8,160}$/.test(input.idempotencyKey))throw new AppError("INVALID_IDEMPOTENCY_KEY","A valid idempotency key is required.",400);
+ if(input.reason.trim().length<8)throw new AppError("REASON_REQUIRED","A reason is required.",400);
+ const db=await getMongoDatabase(),client=await getMongoClient();
+ return withMongoTransaction(client,async(session)=>{
+  const tx=db.collection<Doc>("development_transactions"),prior=await tx.findOne({idempotency_key:input.idempotencyKey},{session});
+  if(prior){if(prior.transaction_type!=="RND_PROJECT"||prior.owner_id!==input.teamId||prior.project_key!==input.projectKey)throw new AppError("IDEMPOTENCY_CONFLICT","Idempotency key belongs to another project.",409);return {projectId:prior.project_id,replayed:true};}
+  const team=await db.collection<Doc>("teams").findOne({_id:input.teamId,owner_player_id:input.actorId,status:"ACTIVE"},{session});
+  if(!team)throw new AppError("TEAM_OWNERSHIP_REQUIRED","Active team ownership is required.",403);
+  const season=await db.collection<Doc>("seasons").findOne({status:"ACTIVE"},{sort:{season_number:-1},session});
+  if(!season)throw new AppError("ACTIVE_SEASON_REQUIRED","An active season is required for R&D.",409);
+  const rules=await db.collection<Doc>("development_rulesets").findOne({season_id:season._id,status:"ACTIVE",enabled:true,"rnd.enabled":true},{session});
+  if(!rules)throw new AppError("RND_RULES_NOT_ACTIVE","R&D is not enabled for this season.",409);
+  const project=rules.rnd.project_catalog.find((p:Doc)=>p.key===input.projectKey);
+  if(!project)throw new AppError("RND_PROJECT_UNAVAILABLE","Project is not in the active season catalog.",404);
+  const wallet=await db.collection<Doc>("development_wallets").findOne({owner_type:"TEAM",owner_id:input.teamId,token_type:"TDP"},{session});
+  if(!wallet)throw new AppError("TDP_WALLET_NOT_FOUND","Team TDP wallet does not exist.",409);
+  const balance=BigInt(String(wallet.balance??0)),cost=BigInt(project.tdp_cost);
+  if(balance<cost)throw new AppError("INSUFFICIENT_TDP","Insufficient TDP for this R&D project.",409);
+  const after=balance-cost,stamp=new Date(),projectId=randomUUID(),transactionId=randomUUID(),eventId=randomUUID();
+  const debit=await db.collection<Doc>("development_wallets").updateOne({_id:wallet._id,version:wallet.version,balance:{$gte:long(project.tdp_cost)}},{$inc:{balance:long(-project.tdp_cost),version:Long.fromInt(1)},$set:{updated_at:stamp}},{session});
+  if(debit.modifiedCount!==1)throw new AppError("WALLET_CONFLICT","TDP wallet changed during project queueing.",409);
+  await db.collection<Doc>("rnd_projects").insertOne({_id:projectId,team_id:input.teamId,season_id:season._id,ruleset_id:rules._id,ruleset_version:rules.version,project_key:project.key,name:project.name,status:"QUEUED",tdp_cost:long(project.tdp_cost),duration_periods:project.duration_periods,queued_by:input.actorId,reason:input.reason.trim(),created_at:stamp,updated_at:stamp},{session});
+  await tx.insertOne({_id:transactionId,wallet_id:wallet._id,owner_type:"TEAM",owner_id:input.teamId,token_type:"TDP",transaction_type:"RND_PROJECT",source_type:"RND_PROJECT",source_id:projectId,project_id:projectId,project_key:project.key,event_id:eventId,idempotency_key:input.idempotencyKey,actor_id:input.actorId,reason:input.reason.trim(),amount:long(project.tdp_cost),balance_before:Long.fromString(balance.toString()),balance_after:Long.fromString(after.toString()),season_id:season._id,ruleset_id:rules._id,ruleset_version:rules.version,created_at:stamp,updated_at:stamp},{session});
+  await db.collection<Doc>("audit_logs").insertOne({_id:randomUUID(),actor_type:"PLAYER",actor_id:input.actorId,action:"RND_PROJECT_QUEUED",target_type:"RND_PROJECT",target_id:projectId,reason:input.reason.trim(),after_state:{teamId:input.teamId,projectKey:project.key,tdpCost:project.tdp_cost,rulesetVersion:rules.version},created_at:stamp,updated_at:stamp},{session});
+  await db.collection<Doc>("outbox_events").insertOne({_id:randomUUID(),event_type:"RND_PROJECT_QUEUED",aggregate_type:"TEAM",aggregate_id:input.teamId,payload:{projectId,projectKey:project.key,seasonId:season._id,rulesetVersion:rules.version},status:"PENDING",attempts:0,next_attempt_at:stamp,created_at:stamp,updated_at:stamp},{session});
+  return {projectId,replayed:false,status:"QUEUED",tdpCost:project.tdp_cost};
  });
 }
