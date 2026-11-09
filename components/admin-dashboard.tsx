@@ -26,7 +26,7 @@ export function AdminDashboard({counts={},displayName="Administrator"}:{counts?:
    <Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link>
    <div className="admin-sidebar-label">WORKSPACE</div>
    <div className="admin-side-active"><span className="side-active-icon"><ShieldCheck size={17}/></span><span><b>Dashboard Admin</b><small>Master control center</small></span></div>
-   <div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">{displayName.slice(0,1).toUpperCase()}</span><span><b>{displayName}</b><small>System Administrator</small></span><SignOutButton/></div><div className="admin-version">CALERIS MASTERS · ADMIN</div></div>
+   <nav className="admin-desktop-nav">{groups.map(group=><section key={group}><div>{groupLabel[group]}</div>{ADMIN_SHEETS.filter(sheet=>sheet.group===group).map(sheet=><Link key={sheet.key} href={`/admin/${sheet.slug}`}><span>{sheet.name}</span><small>{counts[sheet.key]??0}</small></Link>)}</section>)}</nav><div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">{displayName.slice(0,1).toUpperCase()}</span><span><b>{displayName}</b><small>System Administrator</small></span><SignOutButton/></div><div className="admin-version">CALERIS MASTERS · ADMIN</div></div>
   </aside>
   <section className="admin-main">
    <header className="admin-topbar"><AdminMobileNav/><div className="admin-mobile-brand">CALERIS <span>MASTERS</span></div><div className="admin-topbar-right"><span className="admin-secure"><i/> ADMIN SESSION</span><span className="admin-top-avatar">{displayName.slice(0,1).toUpperCase()}</span></div></header>
