@@ -71,6 +71,16 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
           entries.push({account,direction:row.c3==="Masuk"?"Keluar":"Masuk",category:`Reversal: ${String(row.c4??"Transaksi")}`,amount:money(row.c6),description:`Pembatalan transaksi ${target}`});
           await db.collection("admin_sheet_records").updateOne({_id:original._id},{$set:{reversed_by:refId,reversed_at:new Date(),reversed_by_admin:adminId}},{session});
         }
+        const loan=await db.collection("bank_loans").findOne({reference_id:target},{session});
+        if(loan)await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{status:"reversed",reversed_at:new Date(),reversed_by:adminId}},{session});
+        const transfer=await db.collection("driver_transfers").findOne({reference_id:target},{session});
+        if(transfer){
+          await db.collection("driver_transfers").updateOne({_id:transfer._id},{$set:{status:"reversed",reversed_at:new Date(),reversed_by:adminId}},{session});
+          const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"},{session}).toArray();
+          const member=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===String(transfer.driver).toLowerCase());
+          if(member)await db.collection("admin_sheet_records").updateOne({_id:member._id},{$set:{"row_data.c2":transfer.from_team,updated_at:new Date(),updated_by:adminId}},{session});
+        }
+        await db.collection("sponsorship_payouts").updateOne({reference_id:target},{$set:{status:"reversed",reversed_at:new Date(),reversed_by:adminId}},{session});
         result={...result,reversedReference:target,entries:originals.length};
       } else if(action==="transfer"){
         if(!rules.enabledWorkflows.transfer)throw new Error("Workflow transfer dinonaktifkan.");
