@@ -6,6 +6,7 @@ const definition={indexes:[
 ["quests",{active:1,quest_category:1,role_eligibility:1},{name:"ix_quests_active_category_roles"}],
 ["quests",{name:1,version:1},{unique:true,name:"uq_quests_name_version"}],
 ["quest_assignments",{target_type:1,target_id:1,status:1,assigned_at:-1},{name:"ix_quest_assignments_target_status_date"}],
+["quest_assignments",{status:1,expires_at:1},{name:"ix_quest_assignments_status_expiry"}],
 ["quest_assignments",{quest_id:1,target_type:1,target_id:1,assigned_at:-1},{name:"ix_quest_assignments_quest_target_date"}],
 ["quest_assignments",{quest_id:1,target_type:1,target_id:1,recurrence_key:1},{unique:true,partialFilterExpression:{recurrence_key:{$type:"string"}},name:"uq_quest_assignment_recurrence"}],
 ["quest_progress",{assignment_id:1},{unique:true,name:"uq_quest_progress_assignment"}],
