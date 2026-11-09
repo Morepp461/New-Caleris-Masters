@@ -145,10 +145,26 @@ export async function closeEconomyPeriod(input: { periodId: string; actorId: str
     if (reconciliation.some((row) => !row.balanced)) throw new AppError("PERIOD_RECONCILIATION_FAILED", "Period cannot close while ledger totals are unbalanced.", 409);
     const balances = await db.collection<Doc>("ledger_entries").aggregate([
       { $match: { created_at: { $lt: period.end_at } } },
-      { $group: { _id: { account_id: "$account_id", currency: "$currency" }, debit: { $sum: { $cond: [{ $eq: ["$direction", "DEBIT"] }, "$amount_minor", 0] } }, credit: { $sum: { $cond: [{ $eq: ["$direction", "CREDIT"] }, "$amount_minor", 0] } } } },
-      { $project: { account_id: "$_id.account_id", currency: "$_id.currency", balance_minor: { $subtract: ["$debit", "$credit"] } } },
+      { $group: {
+        _id: { account_id: "$account_id", currency: "$currency" },
+        opening_debit: { $sum: { $cond: [{ $and: [{ $lt: ["$created_at", period.start_at] }, { $eq: ["$direction", "DEBIT"] }] }, "$amount_minor", 0] } },
+        opening_credit: { $sum: { $cond: [{ $and: [{ $lt: ["$created_at", period.start_at] }, { $eq: ["$direction", "CREDIT"] }] }, "$amount_minor", 0] } },
+        period_debit: { $sum: { $cond: [{ $and: [{ $gte: ["$created_at", period.start_at] }, { $eq: ["$direction", "DEBIT"] }] }, "$amount_minor", 0] } },
+        period_credit: { $sum: { $cond: [{ $and: [{ $gte: ["$created_at", period.start_at] }, { $eq: ["$direction", "CREDIT"] }] }, "$amount_minor", 0] } },
+        closing_debit: { $sum: { $cond: [{ $eq: ["$direction", "DEBIT"] }, "$amount_minor", 0] } },
+        closing_credit: { $sum: { $cond: [{ $eq: ["$direction", "CREDIT"] }, "$amount_minor", 0] } },
+      } },
     ], { session }).toArray();
-    const report = { transactionCount: await db.collection<Doc>("ledger_transactions").countDocuments({ status: "POSTED", created_at: range }, { session }), reconciliation, closingBalances: balances.map((row) => ({ accountId: row.account_id, currency: row.currency, balanceMinor: String(row.balance_minor) })), closedBy: input.actorId, reason, generatedAt: now() };
+    const accounts = await db.collection<Doc>("economy_accounts").find({}).toArray();
+    const financialStatements = accounts.map((account) => {
+      const row = balances.find((item) => item._id.account_id === account._id && item._id.currency === account.currency);
+      const opening = BigInt(String(row?.opening_debit ?? 0)) - BigInt(String(row?.opening_credit ?? 0));
+      const periodDebit = BigInt(String(row?.period_debit ?? 0)), periodCredit = BigInt(String(row?.period_credit ?? 0));
+      const closing = BigInt(String(row?.closing_debit ?? 0)) - BigInt(String(row?.closing_credit ?? 0));
+      if (closing !== BigInt(String(account.available_balance_minor))) throw new AppError("BALANCE_CACHE_MISMATCH", "Ledger-derived balance does not match the account projection; period close is blocked.", 409, { accountId: account._id });
+      return { accountId: account._id, ownerType: account.owner_type, ownerId: account.owner_id, currency: account.currency, openingBalanceMinor: opening.toString(), periodDebitMinor: periodDebit.toString(), periodCreditMinor: periodCredit.toString(), closingBalanceMinor: closing.toString() };
+    });
+    const report = { transactionCount: await db.collection<Doc>("ledger_transactions").countDocuments({ status: "POSTED", created_at: range }, { session }), reconciliation, financialStatements, closedBy: input.actorId, reason, generatedAt: now() };
     const updated = await periods.updateOne({ _id: period._id, status: "OPEN" }, { $set: { status: "CLOSED", settled_at: now(), reconciliation_report: report, closed_by: input.actorId, close_reason: reason, updated_at: now() } }, { session });
     if (updated.modifiedCount !== 1) throw new AppError("PERIOD_CONFLICT", "Period was closed by another operation.", 409);
     await audit(db, session, input.actorId, "ECONOMY_PERIOD_CLOSED", "ECONOMY_PERIOD", period._id, reason, report);
