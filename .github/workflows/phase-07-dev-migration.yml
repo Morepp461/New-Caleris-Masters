@@ -1,26 +1,73 @@
-name: Phase 07 Development Migration
+name: Phase 07 Development Database Migration
 on:
+  push:
+    branches: [main]
+    paths: ["scripts/db/migrate-phase-07.mjs", ".github/workflows/phase-07-dev-migration.yml"]
   workflow_dispatch:
     inputs:
-      confirmation:
-        description: Type APPLY_PHASE_07_DEV to migrate caleris_masters_dev
+      confirm_development_database:
+        description: "Ketik RUN-DEV untuk mengizinkan migrasi ke caleris_masters_dev"
         required: true
         type: string
 permissions:
   contents: read
+concurrency:
+  group: phase-07-dev-migration
+  cancel-in-progress: false
 jobs:
-  migrate:
-    if: ${{ inputs.confirmation == 'APPLY_PHASE_07_DEV' }}
+  migrate-development:
+    name: Apply and verify Phase 07 migration (development only)
+    if: github.event_name == 'push' || inputs.confirm_development_database == 'RUN-DEV'
     runs-on: ubuntu-latest
-    environment: development
+    timeout-minutes: 20
+    env:
+      MONGODB_URI: ${{ secrets.MONGODB_URI_DEV }}
+      MONGODB_DB: caleris_masters_dev
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: main
+      - name: Require development database secret
+        shell: bash
+        run: |
+          if [[ -z "$MONGODB_URI" || "$MONGODB_DB" != "caleris_masters_dev" ]]; then
+            echo "::error::MONGODB_URI_DEV is required and this workflow only targets caleris_masters_dev."
+            exit 1
+          fi
       - uses: actions/setup-node@v4
         with:
           node-version: 24
       - run: npm install --no-audit --no-fund
-      - name: Apply guarded Phase 07 migration
-        run: npm run db:migrate:phase-07
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
-          MONGODB_DB: caleris_masters_dev
+      - run: npm run db:migrate:phase-07
+      - name: Verify migration, indexes and empty progression state
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { MongoClient } from "mongodb";
+          const client = new MongoClient(process.env.MONGODB_URI, { maxPoolSize: 2 });
+          const expected = {
+            quests: ["ix_quests_active_category_roles", "uq_quests_name_version"],
+            quest_assignments: ["ix_quest_assignments_target_status_date", "ix_quest_assignments_status_expiry", "ix_quest_assignments_quest_target_date", "uq_quest_assignment_recurrence"],
+            quest_progress: ["uq_quest_progress_assignment"],
+            quest_claims: ["uq_quest_claims_assignment", "ix_quest_claims_player_date"],
+            player_xp_events: ["uq_player_xp_events_event", "ix_player_xp_events_player_date"],
+            account_level_rules: ["uq_account_level_rules_level_version", "ix_account_level_rules_status_level"],
+          };
+          try {
+            await client.connect();
+            const db = client.db(process.env.MONGODB_DB);
+            assert.equal(db.databaseName, "caleris_masters_dev");
+            const migration = await db.collection("schema_migrations").findOne({ _id: "006-progression-quest-level" });
+            assert.ok(migration);
+            assert.equal(migration.database, "caleris_masters_dev");
+            assert.equal(migration.index_count, 13);
+            for (const [collection, names] of Object.entries(expected)) {
+              const indexes = await db.collection(collection).listIndexes().toArray();
+              for (const name of names) assert.ok(indexes.some(index => index.name === name), "Missing index " + name);
+            }
+            for (const name of ["quests", "quest_assignments", "quest_progress", "quest_claims", "player_xp_events", "account_level_rules"]) {
+              assert.equal(await db.collection(name).countDocuments({}), 0, "Unexpected Phase 07 seed data in " + name);
+            }
+            console.log("Verified Phase 07 migration, all 13 indexes and empty progression state.");
+          } finally { await client.close(); }
+          NODE
