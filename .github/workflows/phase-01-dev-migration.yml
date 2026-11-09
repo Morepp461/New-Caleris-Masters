@@ -67,7 +67,7 @@ jobs:
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import { MongoClient } from "mongodb";
-          import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES } from "./scripts/db/collections.mjs";
+          import { COLLECTION_VALIDATORS, DOMAIN_COLLECTIONS, INDEXES, LEGACY_INDEXES_TO_DROP } from "./scripts/db/collections.mjs";
 
           const client = new MongoClient(process.env.MONGODB_URI, {
             maxPoolSize: 2,
@@ -93,6 +93,11 @@ jobs:
               assert.equal(Boolean(actual.unique), Boolean(definition.unique), `Unique mismatch: ${indexName}`);
               assert.deepEqual(actual.partialFilterExpression ?? null, definition.partialFilterExpression ?? null,
                 `Partial filter mismatch: ${indexName}`);
+            }
+
+            for (const [collectionName, indexName] of LEGACY_INDEXES_TO_DROP) {
+              const indexes = await db.collection(collectionName).listIndexes().toArray();
+              assert.ok(!indexes.some(x => x.name === indexName), `Legacy index still exists: ${indexName}`);
             }
 
             for (const collectionName of [...DOMAIN_COLLECTIONS, "schema_migrations"]) {
