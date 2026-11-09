@@ -158,3 +158,9 @@
 @media(max-width:760px){.admin-topbar{z-index:1000}.admin-mobile-overlay{z-index:2147483000!important}}
 
 .sheet-entity-link{color:#f2c879;text-decoration:none;font-weight:650;transition:color .18s ease}.sheet-entity-link:hover{color:#fff;text-decoration:underline;text-underline-offset:3px}.sheet-ledger-locked{font-size:10px;letter-spacing:.12em;color:#c8a66a;font-weight:700}
+
+
+/* Season-versioned economy rules editor */
+.rules-json-editor{width:100%;min-height:620px;resize:vertical;background:rgba(10,13,18,.94);border:1px solid rgba(255,255,255,.14);border-radius:14px;color:#e8edf4;padding:18px;font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;tab-size:2;outline:none}
+.rules-json-editor:focus{border-color:rgba(207,42,52,.8);box-shadow:0 0 0 3px rgba(207,42,52,.12)}
+.sheet-season-input{width:100px;min-height:42px;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.14);border-radius:8px;color:inherit;padding:0 12px}
