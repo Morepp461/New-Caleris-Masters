@@ -29,8 +29,11 @@ async function ensureBootstrapAdmin(){
  if(anyAdmin)throw new Error("Bootstrap admin already exists. Use the existing administrator account.");
  const salt=randomBytes(16).toString("hex");
  const passwordHash=(await scrypt(password,salt,64) as Buffer).toString("hex");
- const result=await users.insertOne({email,displayName:process.env.ADMIN_DISPLAY_NAME?.trim()||"Administrator",role:"admin",passwordHash,passwordSalt:salt,createdAt:new Date()} as Omit<AdminUser,"_id">);
- return users.findOne({_id:result.insertedId});
+ const adminId=new ObjectId();
+ await users.insertOne({_id:adminId,email,displayName:process.env.ADMIN_DISPLAY_NAME?.trim()||"Administrator",role:"admin",passwordHash,passwordSalt:salt,createdAt:new Date()});
+ const created=await users.findOne({_id:adminId});
+ if(!created)throw new Error("Failed to create bootstrap administrator.");
+ return created;
 }
 
 export async function authenticateAdmin(emailInput:string,password:string){
