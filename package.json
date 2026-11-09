@@ -20,7 +20,8 @@
     "db:migrate:phase-06": "node scripts/db/migrate-phase-06.mjs",
     "db:migrate:phase-07": "node scripts/db/migrate-phase-07.mjs",
     "db:migrate:phase-08": "node scripts/db/migrate-phase-08.mjs",
-    "db:rollback:phase-08": "node scripts/db/rollback-phase-08.mjs"
+    "db:rollback:phase-08": "node scripts/db/rollback-phase-08.mjs",
+    "db:migrate:phase-09": "node scripts/db/migrate-phase-09.mjs"
   },
   "dependencies": {
     "next": "16.4.3",
