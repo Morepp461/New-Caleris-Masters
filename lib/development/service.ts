@@ -4,6 +4,7 @@ import { getMongoClient,getMongoDatabase } from "@/lib/db/mongodb";
 import { withMongoTransaction } from "@/lib/db/transactions";
 import { AppError } from "@/lib/server/errors";
 import { canUpgrade,createDefaultDevelopmentRules,validateDevelopmentRules } from "./policy.mjs";
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Doc={_id:string;[key:string]:any};
 const long=(n:number)=>Long.fromNumber(n);
 export async function createDevelopmentRuleset(seasonId:string,actorId:string){
