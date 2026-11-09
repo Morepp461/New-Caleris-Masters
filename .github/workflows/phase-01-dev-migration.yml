@@ -62,6 +62,9 @@ jobs:
       - name: Apply development database migration
         run: npm run db:migrate
 
+      - name: Verify primary query plans use expected indexes
+        run: npm run db:verify-query-plans
+
       - name: Verify migration, indexes, validators, and empty baseline
         run: |
           node --input-type=module <<'NODE'
