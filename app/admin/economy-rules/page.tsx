@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { ArrowLeft, Save, RefreshCw, Settings2, Plus } from "lucide-react";
+import { AdminMobileMenu } from "@/components/admin-mobile-menu";
 
 const labels: Record<string,string> = {
   season:"Season", name:"Nama Ruleset", status:"Status", currency:"Mata Uang",
@@ -91,7 +92,7 @@ export default function EconomyRulesPage() {
   }
   function change(path:string[],value:unknown){setRuleset(current=>current?updateAt(current,path,value):current);}
   return <main className="admin-shell"><aside className="admin-sidebar"><Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link><div className="admin-sidebar-label">WORKSPACE</div><Link href="/" className="admin-side-active"><span className="side-active-icon"><ArrowLeft size={17}/></span><span><b>Dashboard Admin</b><small>Kembali ke seluruh modul</small></span></Link></aside>
-    <section className="admin-main"><header className="admin-topbar"><div className="admin-breadcrumb"><Link href="/">DASHBOARD ADMIN</Link><span>/</span><b>ECONOMY RULES</b></div><span className="admin-secure"><i/> ADMIN SESSION</span></header>
+    <section className="admin-main"><header className="admin-topbar"><AdminMobileMenu/><div className="admin-breadcrumb"><Link href="/">DASHBOARD ADMIN</Link><span>/</span><b>ECONOMY RULES</b></div><span className="admin-secure"><i/> ADMIN SESSION</span></header>
       <div className="admin-content"><div className="sheet-back-row"><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Semua modul</Link><span className="sheet-access"><Settings2 size={13}/> SEASON RULESET</span></div>
         <section className="sheet-heading"><div><div className="admin-eyebrow">ECONOMY ENGINE / CONFIGURATION</div><h1>RULES MANAGER</h1><p>Atur tarif, gaji, pajak, denda, development, pinjaman, sponsorship, dan workflow melalui formulir. Tidak perlu menyentuh source code.</p></div><div className="sheet-heading-icon"><Settings2 size={24}/></div></section>
         <div className="sheet-toolbar"><div><span className="admin-eyebrow">VERSIONED CONFIGURATION</span><h2>Aturan Season</h2></div><div className="sheet-actions"><input className="sheet-season-input" type="number" min="1" value={season} onChange={e=>setSeason(e.target.value)} aria-label="Season"/><button className="sheet-refresh" onClick={()=>void load()} disabled={loading}><RefreshCw size={15}/></button><button className="sheet-add" onClick={()=>void load()} disabled={loading}>Muat Ruleset</button></div></div>
