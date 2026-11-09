@@ -24,6 +24,16 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const owners = [{ owner_type: "PLAYER", owner_id: principal.playerId }, ...(team ? [{ owner_type: "TEAM", owner_id: team._id }] : [])];
   const accounts = await db.collection<Doc>("economy_accounts").find(operator ? {} : { $or: owners }).sort({ updated_at: -1 }).limit(operator ? 250 : 10).toArray();
   const accountIds = accounts.map((item) => item._id);
+  const ledgerBalances = accountIds.length ? await db.collection<Doc>("ledger_entries").aggregate([
+    { $match: { account_id: { $in: accountIds } } },
+    { $group: { _id: "$account_id", debit: { $sum: { $cond: [{ $eq: ["$direction", "DEBIT"] }, "$amount_minor", 0] } }, credit: { $sum: { $cond: [{ $eq: ["$direction", "CREDIT"] }, "$amount_minor", 0] } } } },
+    { $project: { account_id: "$_id", balance_minor: { $subtract: ["$debit", "$credit"] } } },
+  ]).toArray() : [];
+  const accountViews = accounts.map((account) => {
+    const ledgerBalance = ledgerBalances.find((row) => row.account_id === account._id)?.balance_minor ?? 0;
+    const derived = BigInt(String(ledgerBalance)).toString();
+    return { ...account, available_balance_minor: derived, ledger_cache_consistent: derived === String(account.available_balance_minor) };
+  });
   const [tokens, transactions, tokenTransactions, rulesets, periods, loans, seasons] = await Promise.all([
     db.collection<Doc>("development_wallets").find(operator ? {} : { $or: owners }).sort({ updated_at: -1 }).limit(operator ? 250 : 10).toArray(),
     db.collection<Doc>("ledger_transactions").find(operator ? {} : { $or: [{ source_account_id: { $in: accountIds } }, { destination_account_id: { $in: accountIds } }] }).sort({ created_at: -1 }).limit(100).toArray(),
@@ -31,7 +41,7 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
     operator ? db.collection<Doc>("economy_rulesets").find({}).sort({ created_at: -1 }).limit(50).toArray() : [],
     operator ? db.collection<Doc>("economy_periods").find({}).sort({ start_at: -1 }).limit(50).toArray() : [],
   ]);
-  return success({ operator, accounts, developmentWallets: tokens, transactions, developmentTransactions: tokenTransactions, rulesets, periods, loans, seasons, economyActivation: "OFF_UNTIL_APPROVED" }, meta);
+  return success({ operator, accounts: accountViews, developmentWallets: tokens, transactions, developmentTransactions: tokenTransactions, rulesets, periods, loans, seasons, economyActivation: "OFF_UNTIL_APPROVED" }, meta);
 }, { scope: "economy-read" });
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
