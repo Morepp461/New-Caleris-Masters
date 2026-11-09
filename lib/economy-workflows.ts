@@ -16,7 +16,13 @@ async function accountExists(db: Awaited<ReturnType<typeof getDatabase>>, accoun
 }
 
 async function balance(db: Awaited<ReturnType<typeof getDatabase>>, account: Account, season?: number, session?: any) {
-  if (account.type === "bank") {\n    const bank = await db.collection("economy_accounts").findOne({ account_key: "vreeo-bank" }, { session });\n    if (bank) return Number(bank.balance ?? 0);\n    const opening = 999999999;\n    await db.collection("economy_accounts").updateOne({account_key:"vreeo-bank"},{$setOnInsert:{balance:opening,created_at:new Date(),source:"backup-settings.vreeoBankSaldoAwal"}},{upsert:true,session});\n    return opening;\n  }
+  if (account.type === "bank") {
+    const bank = await db.collection("economy_accounts").findOne({ account_key: "vreeo-bank" }, { session });
+    if (bank) return Number(bank.balance ?? 0);
+    const opening = 999999999;
+    await db.collection("economy_accounts").updateOne({account_key:"vreeo-bank"},{$setOnInsert:{balance:opening,created_at:new Date(),source:"backup-settings.vreeoBankSaldoAwal"}},{upsert:true,session});
+    return opening;
+  }
   const filter: Record<string, unknown> = { sheet_key: "transaksi", "row_data.c2": account.name };
   if (season) filter["row_data.c9"] = String(season);
   const rows = await db.collection("admin_sheet_records").find(filter, { session }).toArray();
@@ -95,7 +101,17 @@ export async function executeEconomyWorkflow(input: WorkflowInput, adminId: stri
         const remain=due-repayment;
         await db.collection("bank_loans").updateOne({_id:loan._id},{$set:{remaining:remain,status:remain===0?"paid":"overdue",paid_period:remain===0?input.period:null,last_interest:interest,updated_at:new Date()}},{session});
         result={...result,team:t.name,repayment,interest,remaining:remain};
-      } else if(action==="owner_contribution"){\n        const ownerName=String(input.ownerName??"");\n        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"}).toArray();\n        const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");\n        if(!owner)throw new Error("Owner tidak ditemukan.");\n        const teamName=String(owner.row_data?.c2??"");\n        const amount=money(input.amount??rules.salary.ownerContribution);\n        await add(bank,"Keluar","Uang Kontribusi Awal Season",amount,`Kontribusi Owner ${ownerName} ke ${teamName}`);\n        await add(team(teamName),"Masuk","Uang Kontribusi Awal Season",amount,`Kontribusi Owner ${ownerName}`);\n        result={...result,owner:ownerName,team:teamName,amount};\n      } else if(action==="payroll"){
+      } else if(action==="owner_contribution"){
+        const ownerName=String(input.ownerName??"");
+        const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"}).toArray();
+        const owner=members.find(x=>String(x.row_data?.c1??"").toLowerCase()===ownerName.toLowerCase()&&String(x.row_data?.c3??"")==="Owner");
+        if(!owner)throw new Error("Owner tidak ditemukan.");
+        const teamName=String(owner.row_data?.c2??"");
+        const amount=money(input.amount??rules.salary.ownerContribution);
+        await add(bank,"Keluar","Uang Kontribusi Awal Season",amount,`Kontribusi Owner ${ownerName} ke ${teamName}`);
+        await add(team(teamName),"Masuk","Uang Kontribusi Awal Season",amount,`Kontribusi Owner ${ownerName}`);
+        result={...result,owner:ownerName,team:teamName,amount};
+      } else if(action==="payroll"){
         if(!rules.enabledWorkflows.payroll)throw new Error("Payroll dinonaktifkan.");
         const memberName=String(input.memberName??"");
         const members=await db.collection("admin_sheet_records").find({sheet_key:"daftar-anggota"}).toArray();
