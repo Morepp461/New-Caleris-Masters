@@ -6,7 +6,7 @@ import { getMongoDatabase } from "@/lib/db/mongodb";
 const SESSION_SECONDS = 7 * 24 * 60 * 60;
 const COOKIE_NAME = process.env.NODE_ENV === "production" ? "__Host-caleris_session" : "caleris_session";
 
-type StringIdDocument = Document & { _id: string };
+type StringIdDocument = { _id: string; [key: string]: unknown };
 
 export type SessionPrincipal = {
   playerId: string;
