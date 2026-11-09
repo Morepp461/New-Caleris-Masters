@@ -194,11 +194,10 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
    const seasonCap=Number(quest.reward_caps?.["SEASON_"+reward.type]??0);
    if(seasonCap>0){
     const activeSeason=await db.collection<Doc>("seasons").findOne({status:"ACTIVE"},{sort:{season_number:-1}});
-    if(activeSeason){
-     const seasonStart=activeSeason.start_date?new Date(activeSeason.start_date):new Date(0);
-     const totals=await db.collection<Doc>("quest_claims").aggregate([{$match:{claimed_by:actorId,claimed_at:{$gte:seasonStart}}},{$unwind:"$rewards_granted"},{$match:{"rewards_granted.type":reward.type}},{$group:{_id:null,total:{$sum:"$rewards_granted.amount"}}}]).toArray();
-     if(Number(totals[0]?.total??0)+reward.amount>seasonCap)throw fail("SEASON_REWARD_CAP_REACHED","Configured season reward cap would be exceeded.");
-    }
+    if(!activeSeason)throw fail("ACTIVE_SEASON_REQUIRED","An active season is required to enforce the configured season reward cap.");
+    const seasonStart=activeSeason.start_date?new Date(activeSeason.start_date):new Date(0);
+    const totals=await db.collection<Doc>("quest_claims").aggregate([{$match:{claimed_by:actorId,claimed_at:{$gte:seasonStart}}},{$unwind:"$rewards_granted"},{$match:{"rewards_granted.type":reward.type}},{$group:{_id:null,total:{$sum:"$rewards_granted.amount"}}}]).toArray();
+    if(Number(totals[0]?.total??0)+reward.amount>seasonCap)throw fail("SEASON_REWARD_CAP_REACHED","Configured season reward cap would be exceeded.");
    }
   }
   const eventId=randomUUID(),stamp=now(),client=await getMongoClient(),session=client.startSession();
