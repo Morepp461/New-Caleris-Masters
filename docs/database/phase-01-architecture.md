@@ -39,7 +39,7 @@ The collection catalog currently declares 63 domain collections. The relationshi
 - Player account lifecycle: PENDING → ACTIVE; suspension, ban, and deactivation are explicit states. Identity history is retained.
 - Role assignment lifecycle: ACTIVE → INACTIVE or REVOKED. Role switching closes the old assignment and creates the new assignment atomically.
 - Team lifecycle: PENDING, ACTIVE, SUSPENDED, INACTIVE, DISBANDED. Ownership and membership history are not overwritten.
-- Membership lifecycle: PENDING, ACTIVE, ENDED, SUSPENDED. Whether one player may hold multiple active memberships is conditional in the source and remains an explicit decision.
+- Membership lifecycle: PENDING, ACTIVE, ENDED, SUSPENDED. A player may hold at most one ACTIVE team membership globally. The unique partial index on team_memberships.player_id where status=ACTIVE enforces this across all teams and membership roles.
 - Contract lifecycle: OFFERED, ACTIVE, COMPLETED, TERMINATED, EXPIRED. A new contract is a new document; historical contracts are preserved.
 - Division lifecycle: DRAFT, ACTIVE, INACTIVE, ARCHIVED.
 - Season lifecycle: DRAFT, CONFIGURING, ACTIVE, COMPLETED, CANCELLED, ARCHIVED.
@@ -67,7 +67,7 @@ Retention rules above are source-backed by Data Dictionary sections 3–10, 17 a
 4. Operator status cannot be granted through public registration or ordinary role selection.
 5. A team has one valid owner; IDs are immutable.
 6. A player joins a team only through an approved membership.
-7. A driver cannot hold conflicting active team contracts.
+7. A driver may hold at most one ACTIVE team contract globally, regardless of team or contract_type. Historical, completed, terminated, and expired contracts remain preserved. A new contract becomes ACTIVE only after the prior ACTIVE contract is completed or terminated.
 8. Driver and team development use separate DDP/TDP wallets; token spend and attribute change are atomic; attributes stay within 50–200.
 9. Every race belongs to a season/division and uses frozen regulation, circuit, and simulation input versions.
 10. A race event has at most one authoritative active simulation session.
@@ -89,7 +89,7 @@ MongoDB multi-document transactions are required for related writes:
 
 ## Index and query-plan coverage
 
-The code catalog is the executable index definition. Source-backed requirements include unique player username; unique provider identity; role assignment lookup and one active role; unique permission key; unique division code and name; unique season number; unique driver profile per player; team owner/status; membership/contract lookups; quest assignment/claim; unique development wallet owner/token; race calendar/event/session/entry/log/result lookups; standings; unique economy account and idempotency keys; ledger postings; sponsorship lookups; outbox and audit lookups.
+The code catalog is the executable index definition. Source-backed requirements include unique player username; unique provider identity; role assignment lookup and one active role; unique permission key; unique division code and name; unique season number; unique driver profile per player; team owner/status; membership/contract lookups and unique active-player/active-driver constraints; quest assignment/claim; unique development wallet owner/token; race calendar/event/session/entry/log/result lookups; standings; unique economy account and idempotency keys; ledger postings; sponsorship lookups; outbox and audit lookups.
 
 Required query-plan coverage is tracked separately in the G1 acceptance checklist. Explain plans must be captured for actual indexed query shapes, not inferred from index existence.
 
@@ -109,7 +109,7 @@ These are intentionally not guessed:
 1. Team membership exclusivity is conditional: the dictionary says a player may not have two active team memberships **if** game rules prohibit it. It does not settle whether active membership is globally exclusive or scoped by membership_role/team.
 2. Active contract overlap needs a precise rule: the dictionary prohibits conflicting active contracts but does not define the conflict key or date-overlap semantics.
 3. TTL durations for operational race state are configurable but unspecified.
-4. Five collection schemas are listed in the collection map without a complete field-level specification in the sources: `player_sessions`, `team_facilities`, `operator_actions`, `system_jobs`, and `system_health_logs`. `team_achievements` is explicitly described as equivalent to `player_achievements` and is derived from that schema. These must remain baseline-validated until their exact fields/owners/lifecycles are approved.
+2. Five collection schemas are listed in the collection map without a complete field-level specification in the sources: `player_sessions`, `team_facilities`, `operator_actions`, `system_jobs`, and `system_health_logs`. `team_achievements` is explicitly described as equivalent to `player_achievements` and is derived from that schema. These must remain baseline-validated until their exact fields/owners/lifecycles are approved.
 5. The dictionary states `game_settings._id` is a natural string key; it must not be validated as an entity UUID.
 
 G1 cannot be marked complete while an approval blocker affects a uniqueness rule or an authoritative collection contract.
