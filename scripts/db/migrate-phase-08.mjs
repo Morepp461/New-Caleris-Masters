@@ -12,9 +12,11 @@ const definition = { indexes: [
   ["development_transactions", { owner_type: 1, owner_id: 1, token_type: 1, created_at: -1 }, { name: "ix_development_transactions_owner_token_date" }],
   ["economy_rulesets", { season_id: 1, version: 1 }, { unique: true, name: "uq_economy_rulesets_season_version" }],
   ["economy_rulesets", { season_id: 1, status: 1, version: -1 }, { name: "ix_economy_rulesets_season_status_version" }],
+    ["economy_rulesets", { season_id: 1, status: 1 }, { unique: true, name: "uq_economy_rulesets_one_active_per_season", partialFilterExpression: { status: "ACTIVE" } }],
   ["economy_periods", { season_id: 1, period_number: 1 }, { unique: true, name: "uq_economy_periods_season_period" }],
   ["economy_periods", { status: 1, start_at: 1 }, { name: "ix_economy_periods_status_start" }],
   ["loans", { team_id: 1, status: 1, created_at: -1 }, { name: "ix_loans_team_status_date" }],
+    ["loans", { team_id: 1 }, { unique: true, name: "uq_loans_one_active_per_team", partialFilterExpression: { status: "ACTIVE" } }],
 ] };
 const checksum = createHash("sha256").update(JSON.stringify(definition)).digest("hex");
 if (!uri || !database) throw new Error("MONGODB_URI and MONGODB_DB are required.");
