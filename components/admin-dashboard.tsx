@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { Activity, ArrowUpRight, Search, ShieldCheck, LogOut, type LucideIcon } from "lucide-react";
+import { Activity, ArrowUpRight, Search, ShieldCheck, type LucideIcon } from "lucide-react";
 import * as Icons from "lucide-react";
 import { ADMIN_SHEETS, type AdminSheet } from "@/lib/admin-sheets";
 import { SignOutButton } from "@/components/sign-out-button";
