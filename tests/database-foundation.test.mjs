@@ -13,7 +13,7 @@ test("domain collection catalog matches the supplied data dictionary", () => {
 });
 
 test("all source-backed custom indexes are represented once", () => {
-  assert.equal(INDEXES.length, 38);
+  assert.equal(INDEXES.length, 39);
   const names = INDEXES.map(([, name]) => name);
   assert.equal(new Set(names).size, names.length);
   for (const [collection] of INDEXES) {

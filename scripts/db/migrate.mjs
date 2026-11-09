@@ -43,6 +43,13 @@ try {
     });
   }
 
+  await db.command({
+    collMod: "schema_migrations",
+    validator: UUID_BASELINE_VALIDATOR,
+    validationLevel: "strict",
+    validationAction: "error",
+  });
+
   const previous = await db.collection("schema_migrations").findOne({ _id: migrationId });
   if (previous) {
     if (previous.checksum !== migrationChecksum) {
