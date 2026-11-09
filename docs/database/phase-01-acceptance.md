@@ -5,14 +5,14 @@ This checklist follows the Phase 01 scope and G1 gate in `CALERIS MASTERS Master
 | Requirement | Evidence / implementation | Status |
 |---|---|---|
 | Entity and relationship map | `phase-01-architecture.md`, Data Dictionary §2 and §12 | Documented |
-| Collection specifications | Data Dictionary §3–11; executable catalog has 63 collections | Partial: six collection schemas lack field-level definitions in source |
+| Collection specifications | Data Dictionary §3–11; executable catalog has 63 collections | Partial: five collection schemas lack field-level definitions in source; team_achievements is derived from the explicitly equivalent player_achievements schema |
 | Immutable IDs and timestamps | Data Dictionary §1.3; migration baseline | Partial: natural-key exceptions and timestamp consistency require per-collection validation |
 | Lifecycle and versioning | `phase-01-architecture.md`; Data Dictionary lifecycle/status fields | Documented where specified; unspecified collection states remain open |
 | Ownership boundaries | `phase-01-architecture.md`; Data Dictionary §12 and §16 | Documented; backend enforcement is Phase 02+ |
 | Index plan | `scripts/db/collections.mjs`; Data Dictionary §14 | Partial until all source-backed index definitions and conditional uniqueness decisions are implemented |
 | Critical invariants | `phase-01-architecture.md`; Data Dictionary §13 | Documented; service enforcement is later phase |
 | Transaction boundaries | `phase-01-architecture.md`; Data Dictionary §15 | Documented; transaction helper implementation is Phase 02 |
-| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Partial: source-derived BSON type/required-field validators now cover 57 of 63 collections; six remain identifier-only because the source dictionary has no field table |
+| Schema validation baseline | `scripts/db/collections.mjs`, `scripts/db/migrate.mjs` | Partial: source-derived BSON type/required-field validators now cover 58 of 63 collections; five remain identifier-only because the source dictionary has no field table |
 | Migration strategy | Versioned checksum migration; guarded Development workflow | Partial: migration has not yet been verified against Atlas in this run |
 | Development initial state | Development database has no domain documents | Verified before migration; post-migration verification pending |
 | Unique ID / referential integrity tests | `tests/database-foundation.test.mjs` | Partial: catalog assertions exist; reference integrity fixtures/tests remain |
