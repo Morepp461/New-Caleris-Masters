@@ -1,0 +1,1 @@
+import{NextRequest}from"next/server";import{getRequestMeta}from"@/lib/server/request-context";import{success}from"@/lib/server/response";export const runtime="nodejs";export const dynamic="force-dynamic";export function GET(request:NextRequest){return success({status:"LIVE"},getRequestMeta(request));}
