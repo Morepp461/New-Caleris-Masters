@@ -77,9 +77,9 @@ export default function CompetitionConsole() {
     if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new Error(label + " must be a JSON object.");
     return parsed as Record<string, unknown>;
   }
-  async function createRuleset() {
+  async function createRuleset(action = "CREATE_RULESET") {
     try {
-      await submit("CREATE_RULESET", { seasonId, divisionId, calendarRules: parseJson(calendarRules, "Calendar rules"), scoringRules: parseJson(scoringRules, "Scoring rules"), penaltyRules: parseJson(penaltyRules, "Penalty rules"), raceRules: parseJson(raceRules, "Race rules"), economyRules: parseJson(economyRules, "Economy rules"), eligibilityRules: parseJson(eligibilityRules, "Eligibility rules") });
+      await submit(action, { seasonId, divisionId, calendarRules: parseJson(calendarRules, "Calendar rules"), scoringRules: parseJson(scoringRules, "Scoring rules"), penaltyRules: parseJson(penaltyRules, "Penalty rules"), raceRules: parseJson(raceRules, "Race rules"), economyRules: parseJson(economyRules, "Economy rules"), eligibilityRules: parseJson(eligibilityRules, "Eligibility rules") });
     } catch (error) { setMessage(error instanceof Error ? error.message : "Invalid ruleset JSON."); }
   }
 
@@ -136,7 +136,7 @@ export default function CompetitionConsole() {
         <label>ECONOMY RULES (JSON)<textarea rows={3} value={economyRules} onChange={(event) => setEconomyRules(event.target.value)} /></label>
         <label>ELIGIBILITY RULES (JSON)<textarea rows={3} value={eligibilityRules} onChange={(event) => setEligibilityRules(event.target.value)} /></label>
       </div>
-      <div className="competition-action-grid"><button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void createRuleset()}>CREATE RULESET VERSION</button><button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => { setRulesetId(data.rulesets.find((r) => r.season_id === seasonId && r.division_id === divisionId && r.status === "LOCKED")?._id ?? ""); setMessage("Select an existing locked ruleset before creating an amendment from the API."); }}>PREPARE AMENDMENT</button></div>
+      <div className="competition-action-grid"><button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void createRuleset()}>CREATE RULESET VERSION</button><button type="button" disabled={busy || !seasonId || !divisionId || !data.rulesets.some((r) => r.season_id === seasonId && r.division_id === divisionId && r.status === "LOCKED")} onClick={() => void createRuleset("AMEND_RULESET")}>CREATE AMENDMENT VERSION</button></div>
       {rulesetId && <p>Selected ruleset: {rulesetId}</p>}
     </section>
 
