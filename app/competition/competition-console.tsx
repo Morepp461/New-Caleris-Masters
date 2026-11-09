@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import Link from "next/link";\nimport { useCallback, useEffect, useState } from "react";
 
 type Division = { _id: string; name: string; code: string; tier: number; status: string; display_order: number };
 type Season = { _id: string; season_number: number; name: string; status: string; start_date?: string };
@@ -24,7 +24,7 @@ export default function CompetitionConsole() {
     if (!response.ok) throw new Error(body.error?.message ?? "Unable to load competition data.");
     setData(body.data);
   }, []);
-  useEffect(() => { refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Load failed.")); }, [refresh]);
+  // Initial server synchronization for the authenticated operator console.\n  // eslint-disable-next-line react-hooks/set-state-in-effect\n  useEffect(() => { refresh().catch((error: unknown) => setMessage(error instanceof Error ? error.message : "Load failed.")); }, [refresh]);
 
   async function submit(action: string, payload: Record<string, unknown>) {
     setBusy(true); setMessage("");
@@ -46,7 +46,7 @@ export default function CompetitionConsole() {
   return <main className="competition-shell">
     <header className="competition-header">
       <div><span className="competition-kicker">CALERIS MASTERS / OPERATOR</span><h1>COMPETITION <em>CONTROL.</em></h1><p>Divisions, seasons, regulations and race scheduling.</p></div>
-      <a href="/">← BACK TO WORLD</a>
+      <Link href="/">← BACK TO WORLD</Link>
     </header>
     {message && <div className="competition-notice" role="status">{message}</div>}
     <section className="competition-stats">
