@@ -215,10 +215,15 @@ export const POST=apiHandler(async(request:NextRequest,_context,meta)=>{
      let settlementStatus=reward.type==="XP"?"GRANTED":"PENDING_PHASE_08";
      if(reward.type==="ACHIEVEMENT"&&reward.achievement_id){
       const definition=await db.collection<Doc>("achievement_definitions").findOne({_id:reward.achievement_id,active:true},{session});
-      if(definition){
+      if(!definition)throw fail("ACHIEVEMENT_NOT_FOUND","Configured achievement definition is not active.");
+      const expectedTarget=assignment.target_type;
+      if(definition.target_type!==expectedTarget)throw fail("ACHIEVEMENT_TARGET_MISMATCH","Achievement target type does not match the quest assignment.");
+      if(expectedTarget==="PLAYER"){
        await db.collection<Doc>("player_achievements").updateOne({player_id:actorId,achievement_id:reward.achievement_id},{$setOnInsert:{_id:randomUUID(),player_id:actorId,achievement_id:reward.achievement_id,status:"UNLOCKED",progress:{},unlocked_at:stamp,created_at:stamp,updated_at:stamp}},{upsert:true,session});
-       settlementStatus="GRANTED";
-      }else settlementStatus="PENDING_ACHIEVEMENT";
+      }else{
+       await db.collection<Doc>("team_achievements").updateOne({team_id:assignment.target_id,achievement_id:reward.achievement_id},{$setOnInsert:{_id:randomUUID(),team_id:assignment.target_id,achievement_id:reward.achievement_id,status:"UNLOCKED",progress:{},unlocked_at:stamp,created_at:stamp,updated_at:stamp}},{upsert:true,session});
+      }
+      settlementStatus="GRANTED";
      }
      granted.push({...reward,settlement_status:settlementStatus});
     }
