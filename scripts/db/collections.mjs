@@ -44,7 +44,6 @@ export const INDEXES = [
   ["development_transactions", "ix_development_transactions_wallet_created", classic({ wallet_id: 1, created_at: 1 })],
   ["race_events", "uq_race_events_season_division_round", classic({ season_id: 1, division_id: 1, round_number: 1 }, { unique: true })],
   ["race_events", "ix_race_events_status_schedule", classic({ status: 1, scheduled_start_at: 1 })],
-  ["race_events", "ix_race_events_status_schedule", classic({ status: 1, scheduled_start_at: 1 })],
   ["race_entries", "uq_race_entries_event_driver_profile", classic({ race_event_id: 1, driver_profile_id: 1 }, { unique: true })],
   ["race_sessions", "uq_race_sessions_active_event", classic({ race_event_id: 1 }, { unique: true, partialFilterExpression: { status: { $in: ["PENDING", "INITIALIZING", "RUNNING", "PAUSED", "RECOVERING"] } } })],
   ["race_event_logs", "uq_race_event_logs_session_sequence", classic({ race_session_id: 1, sequence_number: 1 }, { unique: true })],
