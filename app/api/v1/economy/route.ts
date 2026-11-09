@@ -40,6 +40,8 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
     db.collection<Doc>("development_transactions").find(operator ? {} : { $or: owners }).sort({ created_at: -1 }).limit(100).toArray(),
     operator ? db.collection<Doc>("economy_rulesets").find({}).sort({ created_at: -1 }).limit(50).toArray() : [],
     operator ? db.collection<Doc>("economy_periods").find({}).sort({ start_at: -1 }).limit(50).toArray() : [],
+    db.collection<Doc>("loans").find(operator ? {} : { team_id: team?._id ?? "__none__" }).sort({ created_at: -1 }).limit(operator ? 200 : 20).toArray(),
+    operator ? db.collection<Doc>("seasons").find({}).sort({ season_number: -1 }).limit(50).toArray() : [],
   ]);
   return success({ operator, accounts: accountViews, developmentWallets: tokens, transactions, developmentTransactions: tokenTransactions, rulesets, periods, loans, seasons, economyActivation: "OFF_UNTIL_APPROVED" }, meta);
 }, { scope: "economy-read" });
