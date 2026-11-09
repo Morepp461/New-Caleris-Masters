@@ -52,7 +52,7 @@ jobs:
             const migration = await db.collection("schema_migrations").findOne({ _id: "007-economy-currency-development-wallets" });
             assert.ok(migration);
             assert.equal(migration.database, "caleris_masters_dev");
-            assert.equal(migration.index_count, 11);
+            assert.equal(migration.index_count, 13);
             for (const name of ["economy_accounts","ledger_transactions","ledger_entries","economy_rulesets","economy_periods","loans","development_wallets","development_transactions"]) {
               assert.equal(await db.collection(name).countDocuments({}), 0, "Phase 08 migration must not seed balances or rules: " + name);
             }
