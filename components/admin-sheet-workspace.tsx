@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Search, Save, Trash2, X, RefreshCw, LockKeyhole, FileSpreadsheet } from "lucide-react";
-import type { AdminSheet } from "@/lib/admin-sheets";
+import { ADMIN_SHEETS, type AdminSheet } from "@/lib/admin-sheets";
 import { AdminMobileNav } from "@/components/admin-mobile-nav";
 import { AdminRacingBackground } from "@/components/admin-racing-background";
 
@@ -27,7 +27,7 @@ export function AdminSheetWorkspace({sheet}:{sheet:AdminSheet}) {
  const remove=async(row:RecordItem)=>{if(!window.confirm("Hapus baris ini? Tindakan ini tidak dapat dibatalkan."))return;setError("");try{const res=await fetch(`/api/admin/sheets/${sheet.slug}/${row.id}`,{method:"DELETE"});const json=await res.json();if(!res.ok)throw new Error(json.error??"Gagal menghapus");await fetchRows();}catch(e){setError(e instanceof Error?e.message:"Gagal menghapus data");}};
  const displayValue=(row:RecordItem,index:number)=>{const value=row.row_data[`c${index}`];return value===null||value===undefined||value===""?"—":String(value);};
  return <main className="admin-shell"><AdminRacingBackground/>
-  <aside className="admin-sidebar"><Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link><div className="admin-sidebar-label">WORKSPACE</div><Link href="/" className="admin-side-active"><span className="side-active-icon"><ArrowLeft size={17}/></span><span><b>Dashboard Admin</b><small>Kembali ke seluruh sheet</small></span></Link><div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">A</span><span><b>Administrator</b><small>System Administrator</small></span></div><div className="admin-version">RESTRICTED SHEET ACCESS</div></div></aside>
+  <aside className="admin-sidebar"><Link href="/" className="admin-brand"><span className="admin-brand-mark">C<span>.</span></span><span><b>CALERIS</b><small>MASTERS CONTROL</small></span></Link><div className="admin-sidebar-label">WORKSPACE</div><Link href="/" className="admin-side-active"><span className="side-active-icon"><ArrowLeft size={17}/></span><span><b>Dashboard Admin</b><small>Kembali ke seluruh sheet</small></span></Link><nav className="admin-desktop-nav">{[...new Set(ADMIN_SHEETS.map(item=>item.group))].map(group=><section key={group}><div>{group}</div>{ADMIN_SHEETS.filter(item=>item.group===group).map(item=><Link key={item.key} href={`/admin/${item.slug}`}><span>{item.name}</span></Link>)}</section>)}</nav><div className="admin-sidebar-bottom"><div className="admin-user"><span className="admin-user-avatar">A</span><span><b>Administrator</b><small>System Administrator</small></span></div><div className="admin-version">RESTRICTED SHEET ACCESS</div></div></aside>
   <section className="admin-main"><header className="admin-topbar"><AdminMobileNav/><div className="admin-breadcrumb"><Link href="/">DASHBOARD ADMIN</Link><span>/</span><b>{sheet.name.toUpperCase()}</b></div><span className="admin-secure"><i/> ADMIN SESSION</span></header>
    <div className="admin-content">
     <div className="sheet-back-row"><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Semua modul</Link><span className="sheet-access"><LockKeyhole size={13}/> ADMIN ONLY</span></div>
