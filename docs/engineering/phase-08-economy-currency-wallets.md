@@ -7,10 +7,13 @@ Implementation basis: Master Development Roadmap Final v1.0, Complete Game Imple
 - Double-entry postings with same-currency debit/credit equality.
 - Atomic balance-cache updates, immutable ledger entries, non-negative available balances and idempotency keys.
 - DDP and TDP wallets remain separate from CP and from one another.
-- Operator token grants are recorded as development transactions with actor, reason, source, event, idempotency key and ruleset version.
+- Operator token grants and approved quest DDP/TDP rewards are recorded as development transactions with actor, reason, source, event, idempotency key and ruleset version. Quest CP rewards post to the double-entry ledger only when quest reward rules are enabled and a funded system account is configured; otherwise the claim remains pending settlement.
+- Salary, reward, prize, penalty, tax, fee, transfer fee, inactive penalty, spending cap, limits and maintenance movements use explicit ruleset gates and operator-posted amounts; no undocumented calculation formula is inferred.
+- Team loans are issued from a funded system account only when loan rules, eligibility threshold, maximum principal and due days are explicitly configured. Repayment posts through the same ledger. Non-zero interest accrual remains blocked until its calculation policy is approved.
 - DDP purchase is available only when an ACTIVE, versioned economy ruleset explicitly enables token purchases and provides approved pricing plus a funded system account. Purchase debits CP and credits DDP in one MongoDB transaction.
 - Draft/active versioned economy rulesets, economy periods, close-time reconciliation reports and audit records.
-- Operator corrections are posted as new balanced transactions; existing transactions and entries are never edited.
+- Operator corrections are posted as new balanced transactions or explicit reversals; existing transactions and entries are never edited.
+- Period close stores opening balances, period debits/credits, closing balances by account owner and currency, and blocks close if the ledger-derived balance differs from the cached account projection.
 - Development migration adds indexes and validator extensions only. It does not seed money, tokens, pricing, taxes, loans, or active rules.
 
 ## Activation and safety
