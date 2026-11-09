@@ -266,3 +266,24 @@ export async function settleQuestRewardInSession(db: Db, session: ClientSession,
   await audit(db, session, input.actorId, "QUEST_DEVELOPMENT_REWARD_SETTLED", "DEVELOPMENT_WALLET", wallet!._id, reason, { tokenType: input.rewardType, amount, assignmentId: input.assignmentId }, "PLAYER");
   return { settled: true, transactionId: id, balance: after.toString(), replayed: false };
 }
+
+export async function reverseMoneyTransaction(input: { transactionId: string; actorId: string; reason: string; idempotencyKey: string }) {
+  const db = await getMongoDatabase();
+  const original = await db.collection<Doc>("ledger_transactions").findOne({ _id: input.transactionId, status: "POSTED" });
+  if (!original || !original.source_account_id || !original.destination_account_id) throw new AppError("TRANSACTION_NOT_REVERSIBLE", "Only a posted transfer with both account references can be reversed.", 409);
+  const existing = await db.collection<Doc>("ledger_transactions").findOne({ reference_type: "REVERSAL", reference_id: original._id, category: "REVERSAL" });
+  if (existing) throw new AppError("ALREADY_REVERSED", "A reversal already exists for this transaction.", 409);
+  return postMoneyTransfer({
+    sourceAccountId: original.destination_account_id,
+    destinationAccountId: original.source_account_id,
+    amountMinor: Number(original.amount_minor),
+    category: "REVERSAL",
+    reason: input.reason,
+    actorId: input.actorId,
+    idempotencyKey: input.idempotencyKey,
+    referenceType: "REVERSAL",
+    referenceId: original._id,
+    rulesetId: original.ruleset_id ?? undefined,
+    rulesetVersion: original.ruleset_version ?? undefined,
+  });
+}
