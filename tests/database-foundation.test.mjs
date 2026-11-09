@@ -49,7 +49,7 @@ test("race event has one active authoritative session", () => {
 test("UUID baseline validator enforces UUID v4 string identifiers", () => {
   assert.deepEqual(UUID_BASELINE_VALIDATOR.$jsonSchema.required, ["_id"]);
   assert.equal(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.bsonType, "string");
-  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\\[0-9a-f\\]/);
+  assert.match(UUID_BASELINE_VALIDATOR.$jsonSchema.properties._id.pattern, /4\[0-9a-f\]/);
 });
 
 test("natural-key collection is not incorrectly constrained to UUID", () => {
