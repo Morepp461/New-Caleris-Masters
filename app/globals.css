@@ -141,3 +141,18 @@
 .admin-desktop-nav a:hover{border-color:#ffffff12;background:#ffffff08;color:#fff}.admin-desktop-nav a small{color:#777c86;font-size:9px}
 .admin-sidebar{max-height:100vh;position:sticky;top:0}
 @media(max-width:760px){.admin-desktop-nav{display:none}}
+
+/* Layer correction: keep the decorative track behind content, but mobile drawer above the entire app */
+.admin-shell{position:relative;isolation:isolate;overflow:visible}
+.caleris-racing-bg{position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;contain:paint}
+.caleris-racing-bg svg{position:absolute;z-index:0}
+.admin-sidebar,.admin-main{position:relative;z-index:1}
+.admin-main{min-width:0}
+.admin-topbar{position:sticky;top:0;z-index:20}
+.admin-mobile-overlay{position:fixed!important;inset:0!important;z-index:2147483000!important;isolation:isolate}
+.admin-mobile-scrim{position:absolute!important;inset:0!important;z-index:0!important}
+.admin-mobile-drawer{position:relative!important;z-index:1!important;height:100dvh!important;max-height:100dvh!important;overflow:hidden!important}
+.admin-mobile-drawer nav{min-height:0;overflow-y:auto;overscroll-behavior:contain}
+.admin-mobile-home{position:relative;z-index:2;flex:0 0 auto}
+.admin-content{position:relative;z-index:1}
+@media(max-width:760px){.admin-topbar{z-index:1000}.admin-mobile-overlay{z-index:2147483000!important}}
