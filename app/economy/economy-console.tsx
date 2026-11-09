@@ -2,7 +2,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
-type Payload = { operator: boolean; accounts: any[]; developmentWallets: any[]; transactions: any[]; developmentTransactions: any[]; rulesets: any[]; periods: any[]; economyActivation: string };
+type EconomyAccount = { _id: string; owner_type: string; owner_id: string; status: string; available_balance_minor: unknown };
+type DevelopmentWallet = { _id: string; owner_type: string; owner_id: string; token_type: string; balance: unknown };
+type LedgerTransaction = { _id: string; category: string; status: string; created_at: string | Date; amount_minor: unknown };
+type Payload = { operator: boolean; accounts: EconomyAccount[]; developmentWallets: DevelopmentWallet[]; transactions: LedgerTransaction[]; developmentTransactions: unknown[]; rulesets: unknown[]; periods: unknown[]; economyActivation: string };
 const money = (value: unknown) => {
   const amount = typeof value === "object" && value && "toString" in value ? String(value) : String(value ?? 0);
   return "¢p " + new Intl.NumberFormat("id-ID").format(Number(amount));
@@ -16,7 +19,7 @@ export default function EconomyConsole() {
     if (!response.ok) throw new Error(json.error?.message ?? "Economy data could not be loaded.");
     setData(json.data);
   }, []);
-  useEffect(() => { load().catch((e) => setError(e.message)); }, [load]);
+  useEffect(() => { void Promise.resolve().then(load).catch((e) => setError(e.message)); }, [load]);
   async function transfer(event: React.FormEvent) {
     event.preventDefault(); setBusy(true); setError(""); setMessage("");
     try {
