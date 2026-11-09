@@ -1,0 +1,45 @@
+export type AdminSheet = {
+  key: string;
+  slug: string;
+  name: string;
+  description: string;
+  group: string;
+  icon: string;
+  columns: string[];
+  readonlyColumns?: number[];
+  readOnly?: boolean;
+  helper?: string;
+};
+
+const make = (key:string,name:string,group:string,icon:string,description:string,columns:string[],readonlyColumns:number[]=[],extra:Partial<AdminSheet>={}):AdminSheet=>({
+  key,slug:key,name,group,icon,description,columns,readonlyColumns,...extra
+});
+
+export const ADMIN_SHEETS:AdminSheet[]=[
+ make("panduan","Panduan","GENERAL","book-open","Petunjuk operasional dan alur penggunaan workbook.",[],[],{readOnly:true,helper:"Panduan akan disusun ulang sebagai dokumentasi operasional Caleris Masters."}),
+ make("dashboard","Dashboard","GENERAL","layout-dashboard","Ringkasan ekonomi dan operasional yang dihitung dari modul lain.",[],[],{readOnly:true,helper:"Ringkasan akan terhubung ke data aktual setelah formula workbook dipindahkan ke service layer."}),
+ make("reminder-alert","Reminder & Alert","GENERAL","bell-ring","Peringatan kontrak, saldo kritis, sponsorship, dan status tim.",["No","Nama","Role","Tim","Durasi Kontrak","Sisa (Season)","Kontrak Hampir Habis","Saldo Individu Kritis","Saldo Tim Kritis","Sponsorship Belum Maksimal","Status Promosi"],[0,1,2,3,4,5,6,7,8,9,10],{readOnly:true,helper:"Halaman ini bersifat kalkulasi otomatis. Nilainya akan muncul saat mesin aturan aktif."}),
+ make("daftar-anggota","Daftar Anggota","MASTER DATA","users","Master profil member, role aktif, kontrak, lisensi, dan status.",["No","Nama","Tim Saat Ini (Otomatis)","Role Saat Ini (Otomatis)","Status","Tim Awal (Rekrutmen)","Kategori (Premio/Zwei/Caleris Trees)","Gaji per Season (¢p)","Helper Checkin","Durasi Kontrak","Role Awal","Lisensi Driver","Season Direkrut","Sisa Kontrak (Season)","Status Kontrak (Otomatis)","Ava (Link)","Ava Celebration (Link)","Member ID (Otomatis)"],[0,2,3,13,14,17],{helper:"Role aktif yang dapat dipilih hanya Admin, FIA, Owner, dan Driver. Role lama tidak digunakan untuk anggota baru."}),
+ make("rincian-biaya","Rincian Biaya","ECONOMY","tags","Tarif standar untuk kategori transaksi dan aktivitas ekonomi.",["No","Kategori","Nominal Standar (¢p)"],[0]),
+ make("transaksi","Transaksi","ECONOMY","arrow-left-right","Jurnal pemasukan dan pengeluaran individu maupun tim.",["No","Tanggal","Nama","Jenis","Kategori","Deskripsi","Jumlah (¢p)","Periode Balancing Ke-","Jumlah Poin (khusus kategori Development)","Season Ke-"],[0,6],{helper:"Kolom Agent dan komisi Agent dari workbook lama dihapus sesuai kebijakan role terbaru."}),
+ make("vreeo-bank","Vreeo Bank","ECONOMY","landmark","Pinjaman tim, pencairan, jatuh tempo, bunga, dan pelunasan.",["No","Nama Tim","Tanggal Pinjam","Pokok Pinjaman (¢p)","Jatuh Tempo (Periode Ke-)","Lunas di Periode Ke-","Periode Telat","Bunga (¢p)","Total Wajib Dibayar (¢p)","Status","Saldo Tim Saat Pengajuan (¢p, Snapshot Manual)","Layak Pinjam? (Saldo < ¢p30.000)","Periode Pencairan Ke-","Periode Pelunasan Ke- (Otomatis dari F)","Season Pinjam (Season Ke-)"],[0,6,7,8,9,11,13]),
+ make("rekap-individu","Rekap Individu","ECONOMY","wallet","Rekap saldo, gaji, pemasukan, pengeluaran, dan pajak individu.",["No","Nama","Role","Nama Tim","Saldo Awal Season (¢p, Manual Snapshot)","Gaji Dibayar Sampai Periode Selesai (¢p)","Masuk Lainnya (Otomatis)","Total Keluar + Pajak (Otomatis)","Saldo Akhir (¢p)","Pajak Kekayaan Periode Berjalan (¢p)"],[0,1,2,3,5,6,7,8,9],{readOnly:true}),
+ make("rekap-tim","Rekap Tim","ECONOMY","flag","Rekap keuangan tim, pajak kekayaan, promosi, dan cashflow.",["No","Nama Tim","Nama Owner","Owner Premio","Owner Zwei","Saldo Awal Owner/Tim (¢p)","Pemasukan Tim","Pengeluaran Tim","Saldo Tim = Saldo Owner (¢p)","Tier Pajak","Estimasi Pajak Periode Ini (¢p)","Total Hutang Bank Aktif (¢p)","Owner Caleris Trees","Status Promosi","Ambang Saldo Promosi (¢p)","Team ID (Otomatis)","% Outcome dari Income","Status Cashflow (Maks 80%)","Producer Mesin?","Hak Veto Permanen?","Mesin yang Digunakan"],[0,5,6,7,8,9,10,11,13,15,16,17]),
+ make("log-pajak-denda","Log Pajak & Denda","ECONOMY","receipt","Pencatatan pajak, denda steward, inactive, dan koreksi terkait.",["No","Tanggal","Periode Balancing Ke-","Nama Tim/Pemain","Jenis","Saldo Saat Dicek (¢p)","Nominal (¢p)","Keterangan","Tim Terdampak (Otomatis)","Season Ke-"],[0,8]),
+ make("sponsorship-tracker","Sponsorship Tracker","ECONOMY","handshake","Pencatatan empat komponen sponsorship dan payout tim.",["No","Nama Tim","T1: Partisipasi (¢p50.000)","T2: Zero Denda (¢p40.000)","T3: Dana Sponsor Pasti (¢p30.000)","T4: Zero Hutang Season (¢p10.000)","Total Sponsorship Didapat (¢p)","Season Ke-","Periode Balancing Ke-","Owner Tim (Otomatis)"],[0,6,9]),
+ make("leaderboard","Leaderboard","REPORTS","trophy","Peringkat ekonomi dan ringkasan performa.",["Peringkat","Nama","Role","Tim","Saldo (¢p)"],[0,1,2,3,4],{readOnly:true}),
+ make("season-periode","Season & Periode","COMPETITION","calendar-days","Konfigurasi season aktif, race berjalan, dan periode balancing.",["Season Ke-","Nama Season","Race Saat Ini","Periode Balancing","Status Season"]),
+ make("riwayat-transfer-driver","Riwayat Transfer Driver","ECONOMY","repeat","Riwayat perpindahan driver dan pajak transfer.",["No","Tanggal","Nama Driver","Dari Tim","Ke Tim","Nominal Transfer Kotor (¢p)","Kena Pajak?","Pajak Transfer (¢p)","Diterima Tim Asal Bersih (¢p)","Keterangan","Periode Balancing Ke-","Season Ke-"],[0,6,7,8],{helper:"Kolom Agent dan komisi Agent dihapus. Pajak transfer tetap mengikuti aturan workbook."}),
+ make("grafik-tim","Grafik Tim","REPORTS","chart-no-axes-combined","Visualisasi perbandingan saldo tim.",[],[],{readOnly:true,helper:"Grafik akan dihasilkan dari rekap tim, bukan diisi sebagai transaksi terpisah."}),
+ make("riwayat-season-individu","Riwayat Season (Individu)","HISTORY","history","Snapshot role, tim, kategori, dan saldo setiap individu per season.",["No","Season Ke-","Nama","Role","Tim","Kategori (Zwei/Premio)","Saldo Akhir (¢p)","Role Terkini (referensi)","Tim Terkini (referensi)","Kategori Terkini (referensi)"],[0,7,8,9]),
+ make("riwayat-season-ekonomi","Riwayat Season (Ekonomi)","HISTORY","archive","Snapshot ekonomi saat season ditutup.",["No","Season Ke-","Tanggal Ditutup","Total Anggota","Total ¢p Beredar (Individu)","Saldo Bank (¢p)","Total Hutang Aktif (¢p)"],[0]),
+ make("hall-of-fame","Hall of Fame","HISTORY","medal","Arsip juara Premio dan Zwei setiap season.",["Season Ke-","Juara Premio","Juara Zwei"]),
+ make("career-path","Career Path","REPORTS","route","Ringkasan perjalanan karier driver dari riwayat season.",["Season Ke-","Tim","Kategori","Saldo Akhir (¢p)","Status","Role"],[0,1,2,3,4,5],{readOnly:true,helper:"Pilih driver setelah data anggota dan snapshot season tersedia."}),
+ make("referensi","Referensi","SETTINGS","list-filter","Nilai referensi untuk dropdown dan validasi form.",["Kategori","Jenis","Role","Kategori Driver","Status Pinjaman","Jenis Pajak/Denda","Status Target","Status Driver","Durasi Kontrak","Kombinasi Nama (Orang + Tim)","Lisensi Driver","Nama Driver","Nama Owner","Nama FIA","Nama Tim"],[9,11,12,13,14],{helper:"Role aktif: Admin, FIA, Owner, Driver. Agent dan Journalist tidak disediakan."}),
+ make("skor-lisensi-klasemen","Skor Lisensi & Klasemen","COMPETITION","award","Lisensi, rentang gaji, aktivitas, dan poin klasemen.",["Nama","Tim","Role","Lisensi","Gaji / Season (¢p)","Gaji Minimum","Gaji Maksimum","Status Gaji","Aktivitas","Poin","Jenis Aktivitas","Poin Aktivitas"],[0,1,2,5,6,7]),
+ make("prize-money","Prize Money","ECONOMY","coins","Perhitungan hadiah akhir season dan alokasi ke tim.",["Peringkat Akhir","Season Ke-","Nama Tim","Prize Money (¢p, Otomatis)","Periode Balancing Ke-"],[3]),
+ make("evaluasi-owner","Evaluasi Owner","MASTER DATA","clipboard-check","Evaluasi kewajiban Owner dan dampaknya pada subsidi tim.",["No","Season Ke-","Nama Owner","Telat Kirim Data Awal Season?","Jumlah Driver Inactive Season Ini","Kena Potongan 20%? (Otomatis)","Subsidi Awal Season Tim (¢p, Snapshot Manual)","Pengurangan Subsidi 20% (¢p, Otomatis)","Keterangan","Tim Terdampak (Otomatis)","Periode Balancing Ke-"],[0,5,7,9,10],{helper:"Kebijakan Principal lama dipindahkan ke Owner. Persentase dan kondisi mengikuti workbook sumber."}),
+ make("pajak-kekayaan-auto","Pajak Kekayaan Auto","ECONOMY","calculator","Rincian kalkulasi pajak kekayaan per periode.",["Nama","Role","Tim","P1 Pre","P1 Tax","P1 Post","P2 Pre","P2 Tax","P2 Post","P3 Pre","P3 Tax","P3 Post","P4 Pre","P4 Tax","P4 Post","Total Tax"],[0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15],{readOnly:true,helper:"Laporan kalkulasi otomatis. Tidak menerima input transaksi langsung."})
+];
+
+export const getAdminSheet=(slug:string)=>ADMIN_SHEETS.find(sheet=>sheet.slug===slug);
