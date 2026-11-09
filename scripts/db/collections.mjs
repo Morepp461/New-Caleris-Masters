@@ -130,9 +130,18 @@ const BSON_TYPE_CODES = {
 function buildCollectionValidator(collectionName) {
   const spec = FIELD_SCHEMA_CATALOG[collectionName];
   if (!spec) {
-    return collectionName === "game_settings"
-      ? NATURAL_KEY_BASELINE_VALIDATOR
-      : UUID_BASELINE_VALIDATOR;
+    if (collectionName === "game_settings") return NATURAL_KEY_BASELINE_VALIDATOR;
+    return {
+      $jsonSchema: {
+        bsonType: "object",
+        required: ["_id", "created_at", "updated_at"],
+        properties: {
+          ...UUID_BASELINE_VALIDATOR.$jsonSchema.properties,
+          created_at: { bsonType: "date" },
+          updated_at: { bsonType: "date" },
+        },
+      },
+    };
   }
 
   const properties = {
@@ -151,10 +160,18 @@ function buildCollectionValidator(collectionName) {
     }
   }
 
+  const required = new Set(spec.r.split(" "));
+  for (const timestampField of ["created_at", "updated_at"]) {
+    if (!properties[timestampField]) {
+      properties[timestampField] = { bsonType: "date" };
+    }
+    required.add(timestampField);
+  }
+
   return {
     $jsonSchema: {
       bsonType: "object",
-      required: spec.r.split(" "),
+      required: [...required],
       properties,
       additionalProperties: true,
     },
