@@ -109,7 +109,7 @@ These are intentionally not guessed:
 1. Team membership exclusivity is conditional: the dictionary says a player may not have two active team memberships **if** game rules prohibit it. It does not settle whether active membership is globally exclusive or scoped by membership_role/team.
 2. Active contract overlap needs a precise rule: the dictionary prohibits conflicting active contracts but does not define the conflict key or date-overlap semantics.
 3. TTL durations for operational race state are configurable but unspecified.
-4. Six collection schemas are listed in the collection map without a complete field-level specification in the dictionary: `team_facilities`, `economy_periods`, `sponsor_milestones`, `operator_actions`, `system_jobs`, and `system_health_logs`. These must remain baseline-validated until their exact fields/owners/lifecycles are approved.
+4. Six collection schemas are listed in the collection map without a complete field-level specification in the dictionary: `player_sessions`, `team_facilities`, `team_achievements`, `operator_actions`, `system_jobs`, and `system_health_logs`. These must remain baseline-validated until their exact fields/owners/lifecycles are approved.
 5. The dictionary states `game_settings._id` is a natural string key; it must not be validated as an entity UUID.
 
 G1 cannot be marked complete while an approval blocker affects a uniqueness rule or an authoritative collection contract.
