@@ -15,7 +15,7 @@ const definition = {
     ["race_calendars", { season_id: 1, division_id: 1 }, { unique: true, name: "uq_calendar_season_division" }],
     ["race_calendars", { status: 1, season_id: 1 }, { name: "ix_calendar_status_season" }],
     ["championships", { season_id: 1, division_id: 1, championship_type: 1 }, { unique: true, name: "uq_championship_season_division_type" }],
-    ["championship_standings", { championship_id: 1, participant_type: 1, participant_id: 1 }, { unique: true, name: "uq_standing_championship_participant" }],
+    ["championship_standings", { championship_id: 1, participant_type: 1, participant_id: 1 }, { unique: true, name: "uq_standing_championship_participant" }],\n    ["circuit_versions", { circuit_id: 1, version: 1 }, { unique: true, name: "uq_circuit_version_number" }],
     ["race_entries", { race_event_id: 1, player_id: 1 }, { unique: true, name: "uq_race_entry_event_player" }],
   ],
 };
