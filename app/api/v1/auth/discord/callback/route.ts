@@ -14,7 +14,7 @@ import { apiHandler } from "@/lib/server/api-handler";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export const GET = apiHandler(async (request: NextRequest) => {
+export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const stateName = getOAuthStateCookieName();
   const expectedState = request.cookies.get(stateName)?.value;
   const receivedState = request.nextUrl.searchParams.get("state");
@@ -33,12 +33,26 @@ export const GET = apiHandler(async (request: NextRequest) => {
     return response;
   };
 
-  if (!stateValid || !code) return redirect("oauth-denied");
+  if (!stateValid || !code) {
+    await writeAuthAudit({
+      action: "AUTH_LOGIN_DENIED_INVALID_OAUTH_STATE",
+      targetType: "AUTHENTICATION",
+      targetId: meta.requestId,
+      reason: "STATE_MISSING_MISMATCH_OR_CODE_MISSING",
+    }).catch(() => undefined);
+    return redirect("oauth-denied");
+  }
 
   let profile: DiscordProfile;
   try {
     profile = await exchangeDiscordCode(code);
   } catch {
+    await writeAuthAudit({
+      action: "AUTH_LOGIN_DENIED_PROVIDER_EXCHANGE",
+      targetType: "AUTHENTICATION",
+      targetId: meta.requestId,
+      reason: "DISCORD_CODE_EXCHANGE_FAILED",
+    }).catch(() => undefined);
     return redirect("oauth-failed");
   }
   const db = await getMongoDatabase();
