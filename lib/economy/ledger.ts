@@ -17,6 +17,8 @@ async function audit(db: Db, session: ClientSession, actorId: string, action: st
 export async function createEconomyAccount(input: { ownerType: string; ownerId: string; currency?: string; actorId: string }) {
   validateAccountOwner(input.ownerType, input.ownerId);
   const db = await getMongoDatabase(), id = randomUUID(), stamp = now(), currency = input.currency ?? "CP";
+  if (input.ownerType === "PLAYER" && !await db.collection<Doc>("players").findOne({ _id: input.ownerId, account_status: "ACTIVE" })) throw new AppError("PLAYER_NOT_ACTIVE", "Only an active player can own a player CP wallet.", 404);
+  if (input.ownerType === "TEAM" && !await db.collection<Doc>("teams").findOne({ _id: input.ownerId, status: "ACTIVE" })) throw new AppError("TEAM_NOT_ACTIVE", "Only an active team can own a team CP wallet.", 404);
   try {
     await db.collection<Doc>("economy_accounts").insertOne({ _id: id, owner_type: input.ownerType, owner_id: input.ownerId, currency, available_balance_minor: Long.ZERO, reserved_balance_minor: Long.ZERO, version: Long.fromInt(1), status: "ACTIVE", created_at: stamp, updated_at: stamp });
   } catch (error) {
@@ -63,7 +65,10 @@ export async function grantDevelopmentTokens(input: { ownerType: "PLAYER" | "TEA
   validateAccountOwner(input.ownerType, input.ownerId);
   if (!TOKEN_TYPES.includes(input.tokenType) || (input.ownerType === "PLAYER" && input.tokenType !== "DDP") || (input.ownerType === "TEAM" && input.tokenType !== "TDP")) throw new AppError("TOKEN_OWNER_MISMATCH", "Player wallets accept DDP and team wallets accept TDP.", 400);
   const amount = toMinorUnits(input.amount, "amount"), key = validateIdempotencyKey(input.idempotencyKey), reason = validateReason(input.reason);
-  const client = await getMongoClient(), db = client.db(process.env.MONGODB_DB);
+  const db = await getMongoDatabase();
+  if (input.ownerType === "PLAYER" && !await db.collection<Doc>("players").findOne({ _id: input.ownerId, account_status: "ACTIVE", active_role: "DRIVER" })) throw new AppError("DDP_DRIVER_REQUIRED", "Operator DDP grants require an active Driver profile.", 404);
+  if (input.ownerType === "TEAM" && !await db.collection<Doc>("teams").findOne({ _id: input.ownerId, status: "ACTIVE" })) throw new AppError("TDP_TEAM_REQUIRED", "Operator TDP grants require an active team.", 404);
+  const client = await getMongoClient();
   return withMongoTransaction(client, async (session) => {
     const tx = db.collection<Doc>("development_transactions"), prior = await tx.findOne({ idempotency_key: key }, { session });
     if (prior) {
