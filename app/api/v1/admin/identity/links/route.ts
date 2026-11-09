@@ -8,16 +8,19 @@ import { apiHandler } from "@/lib/server/api-handler";
 import { success } from "@/lib/server/response";
 import { readString, requireJsonObject } from "@/lib/server/validation";
 import { AppError } from "@/lib/server/errors";
+import { assertSameOrigin } from "@/lib/server/csrf";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
+  assertSameOrigin(request);
   const principal = await getSessionPrincipal(request);
   await requireOperator(principal);
   const body = requireJsonObject(await request.json());
   const playerId = readString(body.playerId, "playerId", { max: 64 });
   const discordUserId = readString(body.discordUserId, "discordUserId", { min: 17, max: 20 });
+  const reason = readString(body.reason, "reason", { min: 3, max: 300 });
   if (!/^\d{17,20}$/.test(discordUserId)) throw new AppError("INVALID_DISCORD_ID", "Discord user ID must be a numeric snowflake.", 400);
   const client = await getMongoClient();
   const db = await getMongoDatabase();
@@ -48,7 +51,7 @@ export const POST = apiHandler(async (request: NextRequest, _context, meta) => {
       action: "IDENTITY_LINK_CREATED",
       target_type: "AUTH_ACCOUNT",
       target_id: authAccountId,
-      reason: "OPERATOR_PROVISIONING_PENDING_FIRST_LOGIN_VERIFICATION",
+      reason,
       created_at: now,
     }, { session });
   });
