@@ -167,3 +167,36 @@
 
 .workflow-form{display:grid;gap:16px;padding:20px}.workflow-form label{display:grid;gap:7px;color:#aeb7c3;font-size:12px;font-weight:700;letter-spacing:.04em}.workflow-form input,.workflow-form select{width:100%;min-height:44px;padding:0 12px;border:1px solid rgba(255,255,255,.14);border-radius:8px;background:#10151d;color:#edf1f6;outline:none}.workflow-form input:focus,.workflow-form select:focus{border-color:rgba(207,42,52,.8)}.workflow-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}.workflow-submit{justify-self:start;min-width:190px}.workflow-result{white-space:pre-wrap;overflow-wrap:anywhere;padding:16px;background:rgba(10,13,18,.9);border:1px solid rgba(255,255,255,.12);border-radius:10px;color:#dce4ed;font-size:12px}
 @media(max-width:640px){.workflow-grid{grid-template-columns:1fr}.workflow-form{padding:14px}}
+
+
+/* Structured economy rules editor and reliable asset import */
+.rules-editor{display:grid;gap:13px;margin-top:18px}
+.rules-fieldset{min-width:0;margin:0;padding:17px;border:1px solid rgba(255,255,255,.09);border-radius:11px;background:linear-gradient(145deg,rgba(20,23,28,.96),rgba(13,15,18,.96))}
+.rules-fieldset legend{padding:0 8px;color:#e5d2a8;font:17px Anton,Impact,sans-serif;letter-spacing:.4px}
+.rules-fields-grid,.rules-dynamic-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.rules-control{display:grid;gap:7px;min-width:0;color:#aeb3bd;font-size:10px;font-weight:650}
+.rules-control input,.rules-add-row input{width:100%;min-width:0;min-height:39px;padding:0 11px;border:1px solid rgba(255,255,255,.12);border-radius:7px;background:#0b0e12;color:#f3f1ed;font-size:12px;outline:none}
+.rules-control input:focus,.rules-add-row input:focus{border-color:#b52a38}
+.rules-control small{color:#858994;font-size:9px;font-weight:400}
+.rules-toggle{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:39px;padding:8px 10px;border:1px solid rgba(255,255,255,.08);border-radius:7px;background:#0b0e12;color:#c6c9d0;font-size:10px}
+.rules-toggle input{width:17px;height:17px;accent-color:#bd2d3a}
+.rules-dynamic-grid>.rules-fieldset{padding:12px}
+.rules-add-row{display:flex;gap:8px;margin-top:13px;padding-top:12px;border-top:1px solid rgba(255,255,255,.07)}
+.rules-add-row button{display:inline-flex;align-items:center;justify-content:center;gap:6px;flex:0 0 auto;padding:0 12px;border:1px solid #a92332;border-radius:7px;background:#a92332;color:white;font-size:10px;font-weight:700}
+.sheet-success{margin:0 0 14px;padding:11px 13px;border:1px solid rgba(101,173,129,.3);border-radius:8px;background:rgba(101,173,129,.08);color:#a8d8b7;font-size:11px}
+.import-panel{max-width:780px;padding:22px}
+.import-intro{display:flex;align-items:flex-start;gap:13px;margin-bottom:19px}
+.import-file-icon{display:grid;place-items:center;width:42px;height:42px;flex:0 0 42px;border:1px solid rgba(198,166,106,.2);border-radius:9px;background:rgba(198,166,106,.08);color:#d0b77f}
+.import-intro b{font-size:13px}.import-intro p{margin:6px 0 0;color:#969ba5;font-size:11px;line-height:1.65}
+.import-dropzone{display:flex;min-height:150px;flex-direction:column;align-items:center;justify-content:center;gap:9px;padding:18px;border:1px dashed rgba(198,166,106,.35);border-radius:10px;background:rgba(198,166,106,.035);color:#c6a66a;text-align:center;cursor:pointer}
+.import-dropzone:hover{border-color:#c6a66a;background:rgba(198,166,106,.07)}
+.import-dropzone input{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0}
+.import-dropzone b{max-width:100%;overflow-wrap:anywhere;color:#e9e6df;font-size:12px}
+.import-dropzone span{color:#858994;font-size:10px}
+.import-submit{margin-top:16px;min-height:40px}
+.import-submit:disabled{cursor:not-allowed;opacity:.45}
+.import-result{display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:13px;border-radius:8px;font-size:11px;line-height:1.65}
+.import-result-success{border:1px solid rgba(101,173,129,.28);background:rgba(101,173,129,.07);color:#b2d9bd}
+.import-result-error{border:1px solid rgba(210,75,85,.32);background:rgba(210,75,85,.07);color:#f09aa1}
+.import-result svg{flex:0 0 18px;margin-top:1px}
+@media(max-width:640px){.rules-fields-grid,.rules-dynamic-grid{grid-template-columns:1fr}.rules-add-row{flex-wrap:wrap}.rules-add-row input{flex:1 1 100px}.import-panel{padding:15px}}
