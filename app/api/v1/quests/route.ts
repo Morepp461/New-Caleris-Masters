@@ -8,7 +8,7 @@ import { success } from "@/lib/server/response";
 import { AppError } from "@/lib/server/errors";
 import { assertSameOrigin } from "@/lib/server/csrf";
 import { requireJsonObject, readString } from "@/lib/server/validation";
-import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant, isWithinCooldown } from "@/lib/progression/policy.mjs";
+import { validateQuestDefinition, canClaimAssignment, normalizeRewardGrant } from "@/lib/progression/policy.mjs";
 import { recordXpEvent } from "@/lib/progression/xp-service";
 
 export const runtime="nodejs";
