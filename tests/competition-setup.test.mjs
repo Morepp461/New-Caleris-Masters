@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { transitionSeason, transitionEvent, validateScoringRules, validateRuleset, canAmendRuleset, nextRulesetVersion, normalizeSeasonStatus, validateCalendarRoundCount } from "../lib/competition/policy.mjs";
+import { transitionSeason, transitionEvent, validateScoringRules, validateRuleset, canAmendRuleset, nextRulesetVersion, normalizeSeasonStatus, validateCalendarRoundCount, buildSeasonConfigurationSnapshot } from "../lib/competition/policy.mjs";
 
 test("season lifecycle only allows planned registration activation completion and archive", () => {
   assert.equal(transitionSeason("PLANNED", "REGISTRATION").ok, true);
@@ -41,4 +41,13 @@ test("calendar rounds are bounded positive integers", () => {
   assert.equal(validateCalendarRoundCount(0), false);
   assert.equal(validateCalendarRoundCount(1.5), false);
   assert.equal(validateCalendarRoundCount(101), false);
+});
+
+test("season activation snapshot captures all competition configuration domains", () => {
+  const snapshot = buildSeasonConfigurationSnapshot({ divisions: [{ _id: "d1" }], calendars: [{ _id: "c1" }], rulesets: [{ version: 1 }], teams: [], drivers: [], events: [{ round_number: 1 }], entries: [] }, new Date("2026-01-01T00:00:00Z"));
+  assert.equal(snapshot.version, 1);
+  assert.equal(snapshot.divisions[0]._id, "d1");
+  assert.equal(snapshot.events[0].round_number, 1);
+  assert.equal(snapshot.captured_at.toISOString(), "2026-01-01T00:00:00.000Z");
+  assert.throws(() => buildSeasonConfigurationSnapshot({ divisions: [] }), /calendars must be an array/);
 });
