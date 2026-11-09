@@ -785,6 +785,7 @@ export type Database = {
       loan_status: "active" | "paid" | "overdue"
       member_role:
         | "driver"
+        | "owner"
         | "principal"
         | "agent"
         | "journalist"
