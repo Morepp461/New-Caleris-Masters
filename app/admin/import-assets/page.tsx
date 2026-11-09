@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { ArrowLeft, ImagePlus, UploadCloud, CheckCircle2, AlertCircle, FileJson } from "lucide-react";
+import { AdminMobileMenu } from "@/components/admin-mobile-menu";
 
 export default function ImportAssetsPage() {
   const [file,setFile]=useState<File|null>(null);
@@ -28,7 +29,7 @@ export default function ImportAssetsPage() {
   }
 
   return <main className="admin-shell"><section className="admin-main" style={{marginLeft:0,width:"100%"}}>
-    <header className="admin-topbar"><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Dashboard Admin</Link><span className="admin-secure"><i/> ADMIN SESSION</span></header>
+    <header className="admin-topbar"><AdminMobileMenu/><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Dashboard Admin</Link><span className="admin-secure"><i/> ADMIN SESSION</span></header>
     <div className="admin-content">
       <div className="sheet-back-row"><Link href="/" className="sheet-back"><ArrowLeft size={15}/> Semua modul</Link><span className="sheet-access">DATA MIGRATION</span></div>
       <section className="sheet-heading"><div><div className="admin-eyebrow">DATA MIGRATION / PROFILE ASSETS</div><h1>IMPORT AVATAR & LOGO</h1><p>Lengkapi foto profil member dan identitas visual tim dari backup asli.</p></div><div className="sheet-heading-icon"><ImagePlus size={24}/></div></section>
