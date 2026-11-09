@@ -8,6 +8,7 @@ import {
   getOAuthStateCookieName,
   verifyOAuthState,
 } from "@/lib/identity/discord-oauth";
+import { isDiscordLinkLoginEligible } from "@/lib/identity/policy.mjs";
 import { randomUUID } from "node:crypto";
 import { apiHandler } from "@/lib/server/api-handler";
 
@@ -59,10 +60,10 @@ export const GET = apiHandler(async (request: NextRequest, _context, meta) => {
   const account = await db.collection("auth_accounts").findOne({
     provider: "discord",
     provider_user_id: profile.id,
-    status: { $ne: "REVOKED" },
+    status: { $in: ["PENDING", "ACTIVE"] },
   });
 
-  if (!account) {
+  if (!account || !isDiscordLinkLoginEligible(account.status)) {
     await writeAuthAudit({
       action: "AUTH_LOGIN_DENIED_UNLINKED_DISCORD",
       targetType: "AUTHENTICATION",
