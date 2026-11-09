@@ -154,7 +154,7 @@ export default function CompetitionConsole() {
         <label>TOTAL ROUNDS<input type="number" min="1" max="100" value={totalRounds} onChange={(event) => setTotalRounds(event.target.value)} /></label>
         <button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void submit("CREATE_CALENDAR", { seasonId, divisionId, totalRounds: Number(totalRounds) })}>CREATE CALENDAR</button>
         <div className="competition-list">{data.calendars.map((item) => <article key={item._id}><div><strong>{item.total_rounds} ROUNDS</strong><small>{data.seasons.find((s) => s._id === item.season_id)?.name} · {data.divisions.find((d) => d._id === item.division_id)?.name}</small></div><span className={item.status === "ACTIVE" ? "state-active" : "state-muted"}>{item.status}</span>{item.status === "DRAFT" && <button type="button" disabled={busy} onClick={() => void submit("ACTIVATE_CALENDAR", { calendarId: item._id })}>ACTIVATE</button>}</article>)}</div>
-        <button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void submit("CREATE_CHAMPIONSHIPS", { seasonId, divisionId })}>CREATE DRIVERS' & TEAMS' CHAMPIONSHIPS</button>
+        <button type="button" disabled={busy || !seasonId || !divisionId} onClick={() => void submit("CREATE_CHAMPIONSHIPS", { seasonId, divisionId })}>CREATE DRIVER & TEAM CHAMPIONSHIPS</button>
       </section>
 
       <section className="competition-panel">
