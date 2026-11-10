@@ -140,7 +140,7 @@ test("checkpoint and event records include component wear, race control and stab
  assert.ok(cp.state[0].tyre.grip>0);
  assert.ok(cp.state[0].incidentHistory instanceof Array);
  assert.ok(cp.raceControl);assert.equal(cp.status,"COMPLETED");assert.ok(cp.latestCheckpointId);
- assert.equal(r.events[0].type,"RACE_STARTED");assert.ok(r.events.every((e,i)=>e.sequence===i+1&&e.eventId===c.raceId+":"+e.sequence));
+ assert.equal(r.events[0].type,"RACE_STARTED");assert.ok(r.events.every((e,i)=>e.sequence===i+1&&e.eventId===c.raceId+":"+e.sequence));assert.ok(r.events.every((e,i)=>i===0||r.events[i-1].simulationTimeMs<=e.simulationTimeMs));
  assert.ok(r.events.every(e=>typeof e.priority==="number"&&e.createdAt.length>0));
  assert.ok(r.events.some(e=>e.type==="PIT_STOP_COMPLETED"));
 });
