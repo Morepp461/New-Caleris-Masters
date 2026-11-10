@@ -10,4 +10,4 @@ coverage
 .DS_Store
 *.log
 artifacts/phase-10-balance-report.json
-artifacts/phase-10-benchmark-report.json\n
+artifacts/phase-10-benchmark-report.json
