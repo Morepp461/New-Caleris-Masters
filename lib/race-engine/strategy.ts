@@ -7,7 +7,7 @@ export function choosePitStrategy(c:Config,e:Entry,s:State,w:Weather,rng:SeededR
  if(s.pitStops>=c.pit.requiredStops||c.totalLaps-s.completedLaps<2)return null;
  const quality=normalizeAttribute(e.teamAttributes.strategyQuality),baseError=c.strategy?.baseDecisionErrorMs??1800,decisionErrorMs=baseError*(1-.3*quality),efficiency=normalizeAttribute(e.teamAttributes.pitStopEfficiency),morale=normalizeAttribute(e.teamAttributes.teamMorale),pitTime=c.pit.basePitTimeMs*(1-.15*efficiency)+c.pit.pitLaneTimeMs+c.pit.executionTimeMs*(1+(1-morale)*.04);
  const minLap=Math.max(s.completedLaps+1,Math.ceil(c.totalLaps*.2)),maxLap=Math.min(c.totalLaps-1,Math.floor(c.totalLaps*.8));
- if(c.strategy?.mode==="FIXED"){const targetLap=clamp(c.strategy.fixedPitLap??Math.floor(c.totalLaps*.5),s.completedLaps+1,c.totalLaps-1),selected=c.pit.allowedCompounds.includes(c.strategy.fixedCompound??"MEDIUM")?(c.strategy.fixedCompound??"MEDIUM"):c.pit.allowedCompounds[0];return{targetLap,compound:selected,expectedTimeMs:c.circuit.referenceLapTimeMs*c.totalLaps+pitTime,decisionErrorMs:0};}
+ if(c.strategy?.mode==="FIXED"){const targetLap=clamp(c.strategy.fixedPitLap??Math.floor(c.totalLaps*.5),s.completedLaps+1,c.totalLaps-1),selected=c.pit.allowedCompounds.includes(c.strategy.fixedCompound??"MEDIUM")?(c.strategy.fixedCompound??"MEDIUM"):c.pit.allowedCompounds[0]??"MEDIUM";return{targetLap,compound:selected,expectedTimeMs:c.circuit.referenceLapTimeMs*c.totalLaps+pitTime,decisionErrorMs:0};}
  const candidates:StrategyPlan[]=[];
  for(let targetLap=minLap;targetLap<=maxLap;targetLap++){
   const before=targetLap-s.completedLaps,after=c.totalLaps-targetLap,current=compound(c,s.tyre.compound),currentRate=wearRate(c,e,s.tyre.compound),projectedCurrent=s.tyre.wear+currentRate*before;
