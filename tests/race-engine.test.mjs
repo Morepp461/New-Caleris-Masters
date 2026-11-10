@@ -11,7 +11,7 @@ test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).ch
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
 
-import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector } from "../lib/race-engine/index.ts";
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute } from "../lib/race-engine/index.ts";
 
 test("Monaco profile reconciles official sector geometry and turn order",()=>{
  const c=createMonacoCircuit2026();
@@ -31,7 +31,7 @@ test("prototype baseline contains 20 drivers and 10 teams and records pit stops"
  assert.equal(new Set(c.entries.map(x=>x.teamId)).size,10);
  assert.equal(r.classification.length,20);
  assert.ok(r.metrics.pitStops>=20);
- assert.ok(r.events.some(x=>x.type==="PIT_STOP"));
+ assert.ok(r.events.some(x=>x.type==="PIT_ENTRY"));assert.ok(r.events.some(x=>x.type==="PIT_SERVICE_STARTED"));assert.ok(r.events.some(x=>x.type==="TYRE_CHANGED"));assert.ok(r.events.some(x=>x.type==="PIT_EXIT"));assert.ok(r.events.some(x=>x.type==="PIT_STOP_COMPLETED"));
  assert.ok(r.events.some(x=>x.type==="LAP_COMPLETED"));
  assert.ok(r.events.some(x=>x.type==="SECTOR_COMPLETED"));
 });
@@ -69,7 +69,7 @@ test("incident, safety car and mechanical failure paths emit events",()=>{
  const c=config();c.incidents={baseProbability:1,mechanicalFailureBaseProbability:1,safetyCarProbability:1};
  c.circuit={...c.circuit,segments:c.circuit.segments.map(x=>({...x,incidentRisk:1}))};
  const r=simulateRace(c);
- assert.ok(r.events.some(x=>x.type==="DRIVER_INCIDENT"));
+ assert.ok(r.events.some(x=>x.type==="INCIDENT_CREATED"));
  assert.ok(r.events.some(x=>x.type==="SAFETY_CAR_DEPLOYED"));
  assert.ok(r.events.some(x=>x.type==="MECHANICAL_FAILURE"));
  assert.ok(r.events.some(x=>x.type==="DRIVER_RETIRED"));
@@ -107,4 +107,48 @@ test("overtake attempts and outcomes are part of the deterministic event stream"
  assert.ok(r.events.some(x=>x.type==="OVERTAKE_ATTEMPTED"));
  assert.ok(r.events.some(x=>x.type==="OVERTAKE_COMPLETED"||x.type==="OVERTAKE_FAILED"));
  assert.equal(r.metrics.overtakes,r.events.filter(x=>x.type==="OVERTAKE_COMPLETED").length);
+});
+
+test("all subsystem random streams are isolated and checkpointed",()=>{
+ const streams=new RandomStreams(77,ENGINE_VERSION),before=streams.snapshot();
+ streams.get("performance").next();
+ const after=streams.snapshot();
+ assert.notEqual(after.performance,before.performance);
+ for(const key of RANDOM_SUBSYSTEMS.filter(x=>x!=="performance"))assert.equal(after[key],before[key]);
+ const cp=simulateUntilLap(config(),1);
+ assert.deepEqual(Object.keys(cp.rngStates).sort(),[...RANDOM_SUBSYSTEMS].sort());
+ assert.equal(cp.raceControl.redFlag,false);
+});
+
+test("attribute normalization covers min, midpoint, max and invalid boundaries",()=>{
+ assert.equal(normalizeAttribute(50),0);
+ assert.equal(normalizeAttribute(125),.5);
+ assert.equal(normalizeAttribute(200),1);
+ assert.throws(()=>normalizeAttribute(49),/CMRE attributes/);
+ assert.throws(()=>normalizeAttribute(201),/CMRE attributes/);
+ for(const key of DRIVER_ATTRIBUTE_KEYS)for(const value of [50,125,200]){const c=config();c.entries[0].driverAttributes[key]=value;assert.doesNotThrow(()=>simulateRace(c));}
+ for(const key of TEAM_ATTRIBUTE_KEYS)for(const value of [50,125,200]){const c=config();c.entries[0].teamAttributes[key]=value;assert.doesNotThrow(()=>simulateRace(c));}
+ for(const key of DRIVER_ATTRIBUTE_KEYS)for(const value of [49,201]){const c=config();c.entries[0].driverAttributes[key]=value;assert.throws(()=>simulateRace(c),/CMRE attributes/);}
+ for(const key of TEAM_ATTRIBUTE_KEYS)for(const value of [49,201]){const c=config();c.entries[0].teamAttributes[key]=value;assert.throws(()=>simulateRace(c),/CMRE attributes/);}
+});
+
+test("checkpoint and event records include component wear, race control and stable ordering",()=>{
+ const c=createPrototypeConfig();c.totalLaps=3;
+ const r=simulateRace(c),cp=r.finalCheckpoint;
+ assert.ok(cp.state[0].mechanical.engineCondition>=0&&cp.state[0].mechanical.engineCondition<=1);
+ assert.ok(cp.state[0].mechanical.gearboxCondition>=0&&cp.state[0].mechanical.gearboxCondition<=1);
+ assert.ok(cp.state[0].tyre.grip>0);
+ assert.ok(cp.state[0].incidentHistory instanceof Array);
+ assert.ok(cp.raceControl);
+ assert.ok(r.events.every((e,i)=>e.sequence===i+1&&e.eventId===c.raceId+":"+e.sequence));
+ assert.ok(r.events.every(e=>typeof e.priority==="number"&&e.createdAt.length>0));
+ assert.ok(r.events.some(e=>e.type==="PIT_STOP_COMPLETED"));
+});
+
+test("attribute effect vectors remain finite at minimum, midpoint and maximum",()=>{
+ const c=config(),e=c.entries[0],s=c.circuit.segments[0],w={...c.weather[0],rainIntensity:.6,trackGrip:.8};
+ for(const value of [50,125,200]){
+  for(const key of DRIVER_ATTRIBUTE_KEYS){const x={...e,driverAttributes:{...e.driverAttributes,[key]:value}},v=attributeEffectVector(x,s,w,true,.5,.5).driver;assert.ok(Object.values(v).every(Number.isFinite));}
+  for(const key of TEAM_ATTRIBUTE_KEYS){const x={...e,teamAttributes:{...e.teamAttributes,[key]:value}},v=attributeEffectVector(x,s,w,true,.5,.5).team;assert.ok(Object.values(v).every(Number.isFinite));}
+ }
 });
