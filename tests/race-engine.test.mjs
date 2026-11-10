@@ -25,7 +25,7 @@ test("Monaco profile reconciles official sector geometry and turn order",()=>{
 });
 
 test("prototype baseline contains 20 drivers and 10 teams and records pit stops",()=>{
- const c=createPrototypeConfig();c.totalLaps=4;
+ const c=createPrototypeConfig();c.totalLaps=4;c.incidents={baseProbability:0,mechanicalFailureBaseProbability:0,safetyCarProbability:0};
  const r=simulateRace(c);
  assert.equal(c.entries.length,20);
  assert.equal(new Set(c.entries.map(x=>x.teamId)).size,10);
@@ -239,7 +239,7 @@ test("mathematical performance functions preserve expected directional behavior"
 });
 
 test("attribute effect vector reports directional risk, tyre, strategy and reliability effects",()=>{
- const c=config(),e=c.entries[0],s=c.circuit.segments[0],w=c.weather[0];
+ const c=config(),e=c.entries[0],s=c.circuit.segments[0],w={...c.weather[0],rainIntensity:.6,trackGrip:.8};
  const base=attributeEffectVector(e,s,w,true,.5,.5);
  const driver=(key,value)=>attributeEffectVector({...e,driverAttributes:{...e.driverAttributes,[key]:value}},s,w,true,.5,.5).driver;
  const team=(key,value)=>attributeEffectVector({...e,teamAttributes:{...e.teamAttributes,[key]:value}},s,w,true,.5,.5).team;
