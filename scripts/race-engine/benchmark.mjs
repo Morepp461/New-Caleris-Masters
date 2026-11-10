@@ -1,4 +1,4 @@
-import{performance}from"node:perf_hooks";
+import{performance}from"node:perf_hooks";import{mkdir,writeFile}from"node:fs/promises";
 import{createPrototypeConfig,simulateRace}from"../../lib/race-engine/index.ts";
 const base=createPrototypeConfig();base.totalLaps=78;base.incidents.baseProbability=0;base.incidents.mechanicalFailureBaseProbability=0;base.checkpointIntervalLaps=20;
 const results=[];
@@ -10,4 +10,4 @@ for(const size of [20,40,60]){
  const avg=samples.reduce((a,b)=>a+b,0)/samples.length,segments=size*c.totalLaps*c.circuit.segments.length;
  results.push({drivers:size,laps:c.totalLaps,segments,samplesMs:samples.map(x=>Number(x.toFixed(2))),averageMs:Number(avg.toFixed(2)),segmentsPerSecond:Math.round(segments/(avg/1000))});
 }
-console.log(JSON.stringify({engineVersion:"CMRE-1.0.0-prototype",runtime:process.version,note:"Local runtime benchmark; remeasure on the Phase 11 worker.",results},null,2));
+const report={engineVersion:"CMRE-1.0.0-prototype",runtime:process.version,note:"GitHub Actions runtime benchmark; remeasure on the Phase 11 worker.",results};await mkdir("artifacts",{recursive:true});await writeFile("artifacts/phase-10-benchmark-report.json",JSON.stringify(report,null,2)+"\\n");console.log(JSON.stringify(report,null,2));
