@@ -61,7 +61,7 @@ test("all 32 canonical attributes expose an explicit effect vector",()=>{
  }
  for(const key of TEAM_ATTRIBUTE_KEYS){
   const changed={...e,teamAttributes:{...e.teamAttributes,[key]:200}};
-  assert.notDeepEqual(attributeEffectVector(changed,s,w,true,.5,.5).team,key);
+  assert.notDeepEqual(attributeEffectVector(changed,s,w,true,.5,.5).team,base.team);
  }
 });
 
