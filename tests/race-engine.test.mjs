@@ -11,7 +11,7 @@ test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).ch
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
 
-import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult, choosePitStrategy, SeededRandom } from "../lib/race-engine/index.ts";
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult, choosePitStrategy, SeededRandom, compareRaceStates } from "../lib/race-engine/index.ts";
 
 test("Monaco profile reconciles official sector geometry and turn order",()=>{
  const c=createMonacoCircuit2026();
@@ -81,14 +81,14 @@ test("Monte Carlo runs 1,000 paired seeds and normalizes win probabilities",()=>
  const report=runMonteCarlo(c,1000);
  assert.equal(report.runs,1000);
  assert.ok(Math.abs(Object.values(report.winRate).reduce((a,b)=>a+b,0)-1)<1e-9);
- assert.ok(Number.isFinite(report.averageRaceTimeMs));
+ assert.ok(Number.isFinite(report.averageRaceTimeMs));assert.ok(report.averageLapTimeMs>0);assert.ok(Number.isFinite(report.averageTyreWear));assert.ok(Number.isFinite(report.averagePitLossMs));assert.ok(Number.isFinite(report.averageMechanicalFailures));
 });
 
 test("paired sensitivity shows higher driver race pace improves mean time",()=>{
  const c=config();c.totalLaps=1;c.pit.requiredStops=0;
  c.incidents={baseProbability:0,mechanicalFailureBaseProbability:0,safetyCarProbability:0};
  const result=measureAttributeSensitivity(c,"DRIVER","D1","racePace",1000);
- assert.ok(result.deltaMs<0);
+ assert.ok(result.deltaMs<0);assert.ok(Number.isFinite(result.baselineMetrics.averageLapTimeMs));assert.ok(Number.isFinite(result.perturbedMetrics.averageTyreWear));assert.ok(Number.isFinite(result.deltaMetrics.averagePitLossMs));
 });
 
 test("dynamic weather, DRS and ERS are emitted as sector-level race events",()=>{
@@ -205,4 +205,21 @@ test("fixed team strategy is honored and pit efficiency reduces expected service
  const efficient={...entry,teamAttributes:{...entry.teamAttributes,pitStopEfficiency:200}};
  const faster=choosePitStrategy(c,efficient,state,cp.weather,new SeededRandom(12));
  assert.ok(faster.expectedTimeMs<plan.expectedTimeMs);
+});
+
+test("classification ties resolve deterministically by grid position and driver ID",()=>{
+ const c=config(),r=simulateRace(c),a={...r.finalCheckpoint.state[0]},b={...r.finalCheckpoint.state[1]};
+ a.retired=false;b.retired=false;a.completedLaps=b.completedLaps;a.totalTimeMs=b.totalTimeMs;a.gridPosition=2;b.gridPosition=1;
+ assert.ok(compareRaceStates(a,b)>0);
+ b.gridPosition=2;b.driverId="A-DRIVER";a.driverId="Z-DRIVER";
+ assert.ok(compareRaceStates(a,b)>0);
+});
+
+test("lap, tyre and pit-loss metrics are present on a completed race",()=>{
+ const c=createPrototypeConfig();c.totalLaps=4;
+ const r=simulateRace(c);
+ assert.ok(r.metrics.averageLapTimeMs>0);
+ assert.ok(r.metrics.averageTyreWear>=0);
+ assert.ok(r.metrics.pitLossMs>0);
+ assert.ok(r.finalCheckpoint.state.every(s=>s.lapTimeHistory.length===4));
 });
