@@ -44,7 +44,10 @@ jobs:
       - name: Monte Carlo calibration
         run: npm run race:calibrate -- --runs=1000
 
-      - name: Race engine throughput benchmark\n        run: npm run race:benchmark\n\n      - name: Upload Phase 10 balance report
+      - name: Race engine throughput benchmark
+        run: npm run race:benchmark
+
+      - name: Upload Phase 10 balance report
         if: always()
         uses: actions/upload-artifact@v4
         with:
