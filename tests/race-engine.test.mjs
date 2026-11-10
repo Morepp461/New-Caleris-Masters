@@ -11,7 +11,7 @@ test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).ch
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
 
-import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult } from "../lib/race-engine/index.ts";
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult, choosePitStrategy, SeededRandom } from "../lib/race-engine/index.ts";
 
 test("Monaco profile reconciles official sector geometry and turn order",()=>{
  const c=createMonacoCircuit2026();
@@ -181,4 +181,28 @@ test("simulation result can be exported as stable JSON",()=>{
  const r=simulateRace(config()),parsed=JSON.parse(serializeResult(r));
  assert.equal(parsed.raceId,r.raceId);
  assert.deepEqual(parsed.classification,r.classification);
+});
+
+test("expected-value strategy selects a legal pit window and responds to strategy quality",()=>{
+ const c=createPrototypeConfig();c.totalLaps=8;
+ const cp=simulateUntilLap(c,1),state=cp.state[0],entry=c.entries.find(x=>x.driverId===state.driverId);
+ const plan=choosePitStrategy(c,entry,state,cp.weather,new SeededRandom(123));
+ assert.ok(plan.targetLap>state.completedLaps&&plan.targetLap<c.totalLaps);
+ assert.ok(c.pit.allowedCompounds.includes(plan.compound));
+ assert.ok(Number.isFinite(plan.expectedTimeMs));
+ assert.ok(plan.decisionErrorMs>0);
+ const expert={...entry,teamAttributes:{...entry.teamAttributes,strategyQuality:200}};
+ const expertPlan=choosePitStrategy(c,expert,state,cp.weather,new SeededRandom(123));
+ assert.ok(expertPlan.decisionErrorMs<plan.decisionErrorMs);
+});
+
+test("fixed team strategy is honored and pit efficiency reduces expected service cost",()=>{
+ const c=createPrototypeConfig();c.totalLaps=8;c.strategy={mode:"FIXED",fixedPitLap:4,fixedCompound:"HARD"};
+ const cp=simulateUntilLap(c,1),state=cp.state[0],entry=c.entries.find(x=>x.driverId===state.driverId);
+ const plan=choosePitStrategy(c,entry,state,cp.weather,new SeededRandom(12));
+ assert.equal(plan.targetLap,4);
+ assert.equal(plan.compound,"HARD");
+ const efficient={...entry,teamAttributes:{...entry.teamAttributes,pitStopEfficiency:200}};
+ const faster=choosePitStrategy(c,efficient,state,cp.weather,new SeededRandom(12));
+ assert.ok(faster.expectedTimeMs<plan.expectedTimeMs);
 });
