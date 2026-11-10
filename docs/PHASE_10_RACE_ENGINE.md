@@ -13,7 +13,7 @@ Offline deterministic simulation core only. No UI, HTTP transport, MongoDB persi
 - Pit windows, compound choice, service efficiency and mandatory-stop penalty.
 - Mechanical condition, reliability, incidents, Safety Car and retirement.
 - Classification, immutable event sequence, deterministic replay.
-- Checkpoint serialization and resume with engine version, input fingerprint, RNG state, weather, race state and prior event log.
+- Checkpoint serialization and resume with engine version, input fingerprint, subsystem RNG states, weather, race control, race state, lifecycle status, latest checkpoint ID and prior event log.\n- Independent seeded RNG streams for qualifying, performance, weather, incidents, mechanical failures, overtaking, pit execution and strategy.\n- Component-level engine, gearbox, suspension, brake and electrical wear, with aggregate condition used by performance/failure models.\n- Staged pit event lifecycle and automated expected-value strategy evaluation, plus fixed pre-race strategy mode.\n- Immutable event records with stable IDs, sequence, priority, simulation timestamp and deterministic virtual createdAt.
 - Monte Carlo and paired sensitivity utilities.
 
 ## Phase 09 attribute contract
@@ -39,7 +39,7 @@ Sources:
 A checkpoint is valid only for the same race ID, engine version and canonical input fingerprint. It includes the PRNG state and complete prior event stream. Recovery resumes from the following lap. Replay validation compares classification, event stream and final PRNG state.
 
 ## Calibration gates
-Run npm run race:calibrate -- --runs=1000 for 1,000 seeded full-grid Monte Carlo runs and paired controlled sensitivity comparisons. Review incident frequency, retirements, overtakes, pit losses, tyre wear, win/podium distribution and every attribute effect before treating balance as final. npm run race:benchmark measures 20/40/60-driver throughput locally; hardware-dependent results are not production capacity guarantees.
+Run npm run race:calibrate -- --runs=1000 for a 1,000-seed full-grid Monte Carlo distribution and 1,000 paired seeds for each of all 32 controlled attribute comparisons. The report includes average race/lap time, win and podium rates, retirement, overtake and incident frequency, mechanical failures, tyre degradation and pit loss. Review incident frequency, retirements, overtakes, pit losses, tyre wear, win/podium distribution and every attribute effect before treating balance as final. npm run race:benchmark measures 20/40/60-driver throughput locally; hardware-dependent results are not production capacity guarantees.
 
 ## Database and infrastructure
-No database schema changed in Phase 10. Therefore no migration is required. The Phase 10 engine remains offline and does not connect to caleris_masters_dev or production. MongoDB production remains untouched. Persistent workers and live race orchestration belong to Phase 11.
+Strategy Quality reduces decision error rather than granting a direct pace bonus. Automated plans evaluate track time, pit time, tyre wear, weather suitability and risk; fixed strategy mode is available for preconfigured team plans. Event createdAt values use the deterministic simulation epoch, not wall-clock time.\n\nNo database schema changed in Phase 10. Therefore no migration is required. The Phase 10 engine remains offline and does not connect to caleris_masters_dev or production. MongoDB production remains untouched. Persistent workers and live race orchestration belong to Phase 11.
