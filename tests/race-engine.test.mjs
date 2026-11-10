@@ -10,3 +10,83 @@ test("race completes and checkpoints each lap",()=>{const x=simulateRace(config(
 test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).checkpoints[1];assert.deepEqual(restoreCheckpoint(serializeCheckpoint(x)),x);});
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
+
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector } from "../lib/race-engine/index.ts";
+
+test("Monaco profile reconciles official sector geometry and turn order",()=>{
+ const c=createMonacoCircuit2026();
+ assert.equal(c.trackLengthMeters,3337);
+ assert.deepEqual(c.segments.map(x=>x.lengthMeters),[1051,1419,867]);
+ assert.deepEqual(c.segments.flatMap(x=>x.turnNumbers??[]),Array.from({length:19},(_,i)=>i+1));
+ assert.equal(c.dataStatus,"CALIBRATION_DRAFT");
+ assert.equal(c.referenceTimeStatus,"PROVISIONAL_MODEL");
+ assert.equal(c.overtakeMode?.straightModeAllowed,false);
+ assert.deepEqual(c.sectorMarkers?.map(x=>x.distanceMeters),[1051,2470]);
+});
+
+test("prototype baseline contains 20 drivers and 10 teams and records pit stops",()=>{
+ const c=createPrototypeConfig();c.totalLaps=4;
+ const r=simulateRace(c);
+ assert.equal(c.entries.length,20);
+ assert.equal(new Set(c.entries.map(x=>x.teamId)).size,10);
+ assert.equal(r.classification.length,20);
+ assert.ok(r.metrics.pitStops>=20);
+ assert.ok(r.events.some(x=>x.type==="PIT_STOP"));
+ assert.ok(r.events.some(x=>x.type==="LAP_COMPLETED"));
+ assert.ok(r.events.some(x=>x.type==="SECTOR_COMPLETED"));
+});
+
+test("checkpoint recovery resumes from serialized RNG and state",()=>{
+ const c=config();c.totalLaps=4;
+ const full=simulateRace(c);
+ const cp=restoreCheckpoint(serializeCheckpoint(simulateUntilLap(c,2)));
+ const resumed=resumeRace(c,cp);
+ assert.deepEqual(resumed.events,full.events);
+ assert.deepEqual(resumed.classification,full.classification);
+ assert.equal(replayMatches(c,full),true);
+});
+
+test("checkpoint rejects a changed input snapshot",()=>{
+ const c=config();const cp=simulateUntilLap(c,1);c.seed++;
+ assert.throws(()=>resumeRace(c,cp),/Checkpoint/);
+});
+
+test("all 32 canonical attributes expose an explicit effect vector",()=>{
+ const c=config(),e=c.entries[0],s=c.circuit.segments[0];
+ const w={...c.weather[0],rainIntensity:.6,trackGrip:.8};
+ const base=attributeEffectVector(e,s,w,true,.5,.5);
+ for(const key of DRIVER_ATTRIBUTE_KEYS){
+  const changed={...e,driverAttributes:{...e.driverAttributes,[key]:200}};
+  assert.notDeepEqual(attributeEffectVector(changed,s,w,true,.5,.5).driver,base.driver,key);
+ }
+ for(const key of TEAM_ATTRIBUTE_KEYS){
+  const changed={...e,teamAttributes:{...e.teamAttributes,[key]:200}};
+  assert.notDeepEqual(attributeEffectVector(changed,s,w,true,.5,.5).team,key);
+ }
+});
+
+test("incident, safety car and mechanical failure paths emit events",()=>{
+ const c=config();c.incidents={baseProbability:1,mechanicalFailureBaseProbability:1,safetyCarProbability:1};
+ c.circuit={...c.circuit,segments:c.circuit.segments.map(x=>({...x,incidentRisk:1}))};
+ const r=simulateRace(c);
+ assert.ok(r.events.some(x=>x.type==="DRIVER_INCIDENT"));
+ assert.ok(r.events.some(x=>x.type==="SAFETY_CAR_DEPLOYED"));
+ assert.ok(r.events.some(x=>x.type==="MECHANICAL_FAILURE"));
+ assert.ok(r.events.some(x=>x.type==="DRIVER_RETIRED"));
+});
+
+test("Monte Carlo runs 1,000 paired seeds and normalizes win probabilities",()=>{
+ const c=config();c.totalLaps=1;c.pit.requiredStops=0;
+ c.incidents={baseProbability:0,mechanicalFailureBaseProbability:0,safetyCarProbability:0};
+ const report=runMonteCarlo(c,1000);
+ assert.equal(report.runs,1000);
+ assert.ok(Math.abs(Object.values(report.winRate).reduce((a,b)=>a+b,0)-1)<1e-9);
+ assert.ok(Number.isFinite(report.averageRaceTimeMs));
+});
+
+test("paired sensitivity shows higher driver race pace improves mean time",()=>{
+ const c=config();c.totalLaps=1;c.pit.requiredStops=0;
+ c.incidents={baseProbability:0,mechanicalFailureBaseProbability:0,safetyCarProbability:0};
+ const result=measureAttributeSensitivity(c,"DRIVER","D1","racePace",1000);
+ assert.ok(result.deltaMs<0);
+});
