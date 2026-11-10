@@ -11,7 +11,7 @@ test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).ch
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
 
-import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute } from "../lib/race-engine/index.ts";
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult } from "../lib/race-engine/index.ts";
 
 test("Monaco profile reconciles official sector geometry and turn order",()=>{
  const c=createMonacoCircuit2026();
@@ -117,7 +117,7 @@ test("all subsystem random streams are isolated and checkpointed",()=>{
  for(const key of RANDOM_SUBSYSTEMS.filter(x=>x!=="performance"))assert.equal(after[key],before[key]);
  const cp=simulateUntilLap(config(),1);
  assert.deepEqual(Object.keys(cp.rngStates).sort(),[...RANDOM_SUBSYSTEMS].sort());
- assert.equal(cp.raceControl.redFlag,false);
+ assert.equal(cp.raceControl.redFlag,false);assert.equal(cp.status,"RUNNING");assert.ok(cp.latestCheckpointId);
 });
 
 test("attribute normalization covers min, midpoint, max and invalid boundaries",()=>{
@@ -139,8 +139,8 @@ test("checkpoint and event records include component wear, race control and stab
  assert.ok(cp.state[0].mechanical.gearboxCondition>=0&&cp.state[0].mechanical.gearboxCondition<=1);
  assert.ok(cp.state[0].tyre.grip>0);
  assert.ok(cp.state[0].incidentHistory instanceof Array);
- assert.ok(cp.raceControl);
- assert.ok(r.events.every((e,i)=>e.sequence===i+1&&e.eventId===c.raceId+":"+e.sequence));
+ assert.ok(cp.raceControl);assert.equal(cp.status,"COMPLETED");assert.ok(cp.latestCheckpointId);
+ assert.equal(r.events[0].type,"RACE_STARTED");assert.ok(r.events.every((e,i)=>e.sequence===i+1&&e.eventId===c.raceId+":"+e.sequence));
  assert.ok(r.events.every(e=>typeof e.priority==="number"&&e.createdAt.length>0));
  assert.ok(r.events.some(e=>e.type==="PIT_STOP_COMPLETED"));
 });
@@ -151,4 +151,34 @@ test("attribute effect vectors remain finite at minimum, midpoint and maximum",(
   for(const key of DRIVER_ATTRIBUTE_KEYS){const x={...e,driverAttributes:{...e.driverAttributes,[key]:value}},v=attributeEffectVector(x,s,w,true,.5,.5).driver;assert.ok(Object.values(v).every(Number.isFinite));}
   for(const key of TEAM_ATTRIBUTE_KEYS){const x={...e,teamAttributes:{...e.teamAttributes,[key]:value}},v=attributeEffectVector(x,s,w,true,.5,.5).team;assert.ok(Object.values(v).every(Number.isFinite));}
  }
+});
+
+test("circuit segments and weather change simulated performance",()=>{
+ const dry=createPrototypeConfig();dry.totalLaps=2;dry.pit.requiredStops=0;dry.incidents={baseProbability:0,mechanicalFailureBaseProbability:0,safetyCarProbability:0};
+ const dryResult=simulateRace(dry);
+ const altered={...dry,circuit:{...dry.circuit,segments:dry.circuit.segments.map(s=>({...s,engineFactor:s.engineFactor*1.4,gripFactor:s.gripFactor*.6}))}};
+ const alteredResult=simulateRace(altered);
+ assert.notEqual(dryResult.classification[0].totalTimeMs,alteredResult.classification[0].totalTimeMs);
+ const wet={...dry,weather:[{...dry.weather[0],kind:"HEAVY_RAIN",rainIntensity:.9,trackGrip:.72,visibility:.6}]};
+ const wetResult=simulateRace(wet);
+ assert.notEqual(dryResult.classification[0].totalTimeMs,wetResult.classification[0].totalTimeMs);
+});
+
+test("seeded random weather transitions are replayable",()=>{
+ const c=createPrototypeConfig();c.totalLaps=4;c.dynamicWeather=true;c.weatherTransitionChancePerLap=1;
+ c.weather=[
+  {...c.weather[0],kind:"DRY",rainIntensity:0,trackGrip:1},
+  {...c.weather[0],kind:"LIGHT_RAIN",rainIntensity:.25,trackGrip:.94},
+  {...c.weather[0],kind:"MEDIUM_RAIN",rainIntensity:.55,trackGrip:.84},
+  {...c.weather[0],kind:"HEAVY_RAIN",rainIntensity:.9,trackGrip:.72}
+ ];
+ const a=simulateRace(c),b=simulateRace(c);
+ assert.deepEqual(a.events,b.events);
+ assert.ok(a.events.some(e=>e.type==="WEATHER_CHANGED"));
+});
+
+test("simulation result can be exported as stable JSON",()=>{
+ const r=simulateRace(config()),parsed=JSON.parse(serializeResult(r));
+ assert.equal(parsed.raceId,r.raceId);
+ assert.deepEqual(parsed.classification,r.classification);
 });
