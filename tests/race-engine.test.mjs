@@ -11,7 +11,7 @@ test("checkpoint serializes and restores",()=>{const x=simulateRace(config()).ch
 test("canonical attribute contracts contain 16 driver and 16 team attributes",()=>{assert.equal(DRIVER_ATTRIBUTE_KEYS.length,16);assert.equal(TEAM_ATTRIBUTE_KEYS.length,16);});
 test("out-of-range attributes are rejected",()=>{const c=config();c.entries[0].driverAttributes.racePace=201;assert.throws(()=>simulateRace(c),/CMRE attributes/);});
 
-import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult, choosePitStrategy, SeededRandom, compareRaceStates } from "../lib/race-engine/index.ts";
+import { createMonacoCircuit2026, createPrototypeConfig, simulateUntilLap, resumeRace, runMonteCarlo, measureAttributeSensitivity, attributeEffectVector, RandomStreams, RANDOM_SUBSYSTEMS, ENGINE_VERSION, normalizeAttribute, serializeResult, choosePitStrategy, SeededRandom, compareRaceStates, driverContribution, teamContribution, segmentTime, qualifyingTime, attackProbability, defenseProbability } from "../lib/race-engine/index.ts";
 
 test("Monaco profile reconciles official sector geometry and turn order",()=>{
  const c=createMonacoCircuit2026();
@@ -222,4 +222,34 @@ test("lap, tyre and pit-loss metrics are present on a completed race",()=>{
  assert.ok(r.metrics.averageTyreWear>=0);
  assert.ok(r.metrics.pitLossMs>0);
  assert.ok(r.finalCheckpoint.state.every(s=>s.lapTimeHistory.length===4));
+});
+
+test("mathematical performance functions preserve expected directional behavior",()=>{
+ const c=config(),e=c.entries[0],d=c.entries[1],s=c.circuit.segments[0],w=c.weather[0];
+ const fastDriver={...e,driverAttributes:{...e.driverAttributes,racePace:200,qualifyingPace:200}};
+ const fastTeam={...e,teamAttributes:{...e.teamAttributes,enginePower:200}};
+ assert.ok(driverContribution(fastDriver,w)>driverContribution(e,w));
+ assert.ok(teamContribution(fastTeam,s)>teamContribution(e,s));
+ assert.ok(segmentTime(fastDriver,s,w,1,0,0,0)<segmentTime(e,s,w,1,0,0,0));
+ assert.ok(qualifyingTime(fastDriver,60000,w,0)<qualifyingTime(e,60000,w,0));
+ const attacker={...e,driverAttributes:{...e.driverAttributes,overtakeSkill:200}};
+ const defender={...d,driverAttributes:{...d.driverAttributes,defensiveStrength:200}};
+ assert.ok(attackProbability(attacker,d,.5,.5)>attackProbability(e,d,.5,.5));
+ assert.ok(defenseProbability(defender,e)>defenseProbability(d,e));
+});
+
+test("attribute effect vector reports directional risk, tyre, strategy and reliability effects",()=>{
+ const c=config(),e=c.entries[0],s=c.circuit.segments[0],w=c.weather[0];
+ const base=attributeEffectVector(e,s,w,true,.5,.5);
+ const driver=(key,value)=>attributeEffectVector({...e,driverAttributes:{...e.driverAttributes,[key]:value}},s,w,true,.5,.5).driver;
+ const team=(key,value)=>attributeEffectVector({...e,teamAttributes:{...e.teamAttributes,[key]:value}},s,w,true,.5,.5).team;
+ assert.ok(driver("tyreManagement",200).tyreWearFactor<base.driver.tyreWearFactor);
+ assert.ok(driver("aggression",200).aggressionRisk>base.driver.aggressionRisk);
+ assert.ok(driver("wetWeatherSkill",200).wetWeather>base.driver.wetWeather);
+ assert.ok(driver("mechanicalSympathy",200).mechanicalStressFactor<base.driver.mechanicalStressFactor);
+ assert.ok(team("strategyQuality",200).strategyDecisionErrorFactor<base.team.strategyDecisionErrorFactor);
+ assert.ok(team("teamMorale",200).teamMoralePitNoiseFactor<base.team.teamMoralePitNoiseFactor);
+ assert.ok(team("reliability",200).reliabilityFailureFactor<base.team.reliabilityFailureFactor);
+ assert.ok(team("drsEfficiency",200).drsEfficiency>base.team.drsEfficiency);
+ assert.ok(team("ersEfficiency",200).ersEfficiency>base.team.ersEfficiency);
 });
