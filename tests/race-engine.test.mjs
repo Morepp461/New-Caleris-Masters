@@ -90,3 +90,21 @@ test("paired sensitivity shows higher driver race pace improves mean time",()=>{
  const result=measureAttributeSensitivity(c,"DRIVER","D1","racePace",1000);
  assert.ok(result.deltaMs<0);
 });
+
+test("dynamic weather, DRS and ERS are emitted as sector-level race events",()=>{
+ const c=config();c.dynamicWeather=true;c.weather=[{...c.weather[0]},{lap:1,kind:"LIGHT_RAIN",rainIntensity:.25,ambientTemperature:24,trackTemperature:27,trackGrip:.9,visibility:.9}];
+ c.drs={...c.drs,enabled:true,detectionGapMs:100000};
+ c.circuit={...c.circuit,segments:c.circuit.segments.map(x=>({...x,drsZone:true}))};
+ const r=simulateRace(c);
+ assert.ok(r.events.some(x=>x.type==="WEATHER_CHANGED"));
+ assert.ok(r.events.some(x=>x.type==="SECTOR_COMPLETED"&&x.payload.ersDeployment>0));
+ assert.ok(r.events.some(x=>x.type==="SECTOR_COMPLETED"&&x.payload.drsActive===true));
+});
+
+test("overtake attempts and outcomes are part of the deterministic event stream",()=>{
+ const c=config();c.circuit={...c.circuit,segments:c.circuit.segments.map(x=>({...x,overtakeDifficulty:.1}))};
+ const r=simulateRace(c);
+ assert.ok(r.events.some(x=>x.type==="OVERTAKE_ATTEMPTED"));
+ assert.ok(r.events.some(x=>x.type==="OVERTAKE_COMPLETED"||x.type==="OVERTAKE_FAILED"));
+ assert.equal(r.metrics.overtakes,r.events.filter(x=>x.type==="OVERTAKE_COMPLETED").length);
+});
