@@ -8,6 +8,6 @@ export class RandomStreams{
  constructor(seed:number,engineVersion:string,snapshot?:Partial<RandomStateSnapshot>){this.streams=Object.fromEntries(RANDOM_SUBSYSTEMS.map(k=>[k,new SeededRandom(deriveSeed(seed,engineVersion,k))])) as Record<RandomSubsystem,SeededRandom>;if(snapshot)this.restore(snapshot as RandomStateSnapshot)}
  get(name:RandomSubsystem){return this.streams[name]}
  snapshot():RandomStateSnapshot{return Object.fromEntries(RANDOM_SUBSYSTEMS.map(k=>[k,this.streams[k].snapshot()])) as RandomStateSnapshot}
- restore(snapshot:RandomStateSnapshot){for(const name of RANDOM_SUBSYSTEMS){const value=snapshot[name];if(value!==undefined)this.streams[name].restore(value);}}
+ restore(snapshot:Partial<RandomStateSnapshot>){for(const name of RANDOM_SUBSYSTEMS){const value=snapshot[name];if(value!==undefined)this.streams[name].restore(value);}}
 }
 export function clamp(v:number,a:number,b:number){return Math.max(a,Math.min(b,v))}
