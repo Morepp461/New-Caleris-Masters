@@ -71,7 +71,7 @@ test("incident, safety car and mechanical failure paths emit events",()=>{
  const r=simulateRace(c);
  assert.ok(r.events.some(x=>x.type==="INCIDENT_CREATED"));
  assert.ok(r.events.some(x=>x.type==="SAFETY_CAR_DEPLOYED"));
- assert.ok(r.events.some(x=>x.type==="MECHANICAL_FAILURE"));
+ assert.ok(r.events.some(x=>x.type==="MECHANICAL_FAILURE"&&typeof x.payload.component==="string"));
  assert.ok(r.events.some(x=>x.type==="DRIVER_RETIRED"));
 });
 
